@@ -41,6 +41,18 @@ PS C:\Users\user> ping -t -w 100 diamc.kr | %{echo "$((get-date -UFormat %s)) $_
 1696105313,10928 Reply from 211.177.94.215: bytes=32 time=305ms TTL=46
 1696105314,11527 Reply from 211.177.94.215: bytes=32 time=306ms TTL=46
 
+## TODO: Consider Windows ICMP API for faster loss reporting
+
+The Windows GUI currently shells out to `ping.exe`. During serious packet loss,
+`ping.exe` appears to take more than one second to report a lost packet,
+regardless of the timeout arguments used. This can make the realtime graph lag
+behind the actual loss event.
+
+Consider replacing the Windows GUI ping path with the Windows ICMP API
+(`IcmpCreateFile` / `IcmpSendEcho`, and the IPv6 equivalents if needed). That
+should let us report packet loss at the intended one-second cadence without
+waiting on `ping.exe` process behavior or localized text output.
+
 ## Regarding targets for pinging 
 
 ### THE BASIC FACTS

@@ -391,9 +391,9 @@ func (a *app) run() error {
 				HandleWidth: 10,
 				Children: []Widget{
 					Composite{
-						MinSize: Size{130, 0},
-						MaxSize: Size{150, 0},
-						Layout:  VBox{Margins: Margins{Left: 8, Top: 8, Right: 8, Bottom: 8}},
+						MinSize:       Size{180, 0},
+						StretchFactor: 1,
+						Layout:        VBox{Margins: Margins{Left: 8, Top: 8, Right: 8, Bottom: 8}},
 						Children: []Widget{
 							Label{Text: "Target groups"},
 							a.groupEditor(0),
@@ -421,7 +421,8 @@ func (a *app) run() error {
 						},
 					},
 					Composite{
-						Layout: VBox{Margins: Margins{Left: 8, Top: 8, Right: 8, Bottom: 8}, Spacing: 1},
+						StretchFactor: 3,
+						Layout:        VBox{Margins: Margins{Left: 8, Top: 8, Right: 8, Bottom: 8}, Spacing: 1},
 						Children: []Widget{
 							Label{AssignTo: &a.currentLabel, Text: "No samples yet"},
 							CustomWidget{AssignTo: &a.rttHeader, MinSize: Size{0, 24}, MaxSize: Size{0, 24}, InvalidatesOnResize: true, Paint: a.paintRTTHeader},
