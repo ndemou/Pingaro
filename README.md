@@ -5,6 +5,7 @@ GoPing is a graphical version of ping designed for long-term monitoring. It visu
 ## Build
 
     go build -o goping.exe .
+    go build -ldflags="-H=windowsgui" -o gopingui.exe ./cmd/gopingui
 
 ## Run
 
@@ -19,6 +20,12 @@ GoPing is a graphical version of ping designed for long-term monitoring. It visu
 
     # Test the connection to a specific host by pinging at 20 pings per second:
     .\goping.exe -PingsPerSec 20 10.1.1.1
+
+    # Launch the native Windows desktop dashboard:
+    .\gopingui.exe
+
+The `gopingui` command is a standalone Windows desktop app. It does not run a
+local web server and does not need a browser.
 
 ![image](https://github.com/ndemou/Out-PingStats/assets/4411400/63b33280-a1ba-4a08-8fe4-da0572c2f942)
 
