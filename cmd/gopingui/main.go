@@ -425,14 +425,14 @@ func (a *app) run() error {
 						Layout:        VBox{Margins: Margins{Left: 8, Top: 8, Right: 8, Bottom: 8}, Spacing: 1},
 						Children: []Widget{
 							Label{AssignTo: &a.currentLabel, Text: "No samples yet"},
-							CustomWidget{AssignTo: &a.rttHeader, MinSize: Size{0, 24}, MaxSize: Size{0, 24}, InvalidatesOnResize: true, Paint: a.paintRTTHeader},
-							CustomWidget{AssignTo: &a.rttChart, MinSize: Size{0, 150}, InvalidatesOnResize: true, Paint: a.paintRTT},
-							CustomWidget{AssignTo: &a.p95Header, MinSize: Size{0, 24}, MaxSize: Size{0, 24}, InvalidatesOnResize: true, Paint: a.paintP95Header},
-							CustomWidget{AssignTo: &a.p95Chart, MinSize: Size{0, 145}, InvalidatesOnResize: true, Paint: a.paintP95},
-							CustomWidget{AssignTo: &a.lossHeader, MinSize: Size{0, 24}, MaxSize: Size{0, 24}, InvalidatesOnResize: true, Paint: a.paintLossHeader},
-							CustomWidget{AssignTo: &a.lossChart, MinSize: Size{0, 145}, InvalidatesOnResize: true, Paint: a.paintLoss},
-							CustomWidget{AssignTo: &a.jitterHeader, MinSize: Size{0, 24}, MaxSize: Size{0, 24}, InvalidatesOnResize: true, Paint: a.paintJitterHeader},
-							CustomWidget{AssignTo: &a.jitterChart, MinSize: Size{0, 145}, InvalidatesOnResize: true, Paint: a.paintJitter},
+							CustomWidget{AssignTo: &a.rttHeader, MinSize: Size{0, 24}, MaxSize: Size{0, 24}, InvalidatesOnResize: true, PaintPixels: a.paintRTTHeader},
+							CustomWidget{AssignTo: &a.rttChart, MinSize: Size{0, 150}, InvalidatesOnResize: true, PaintPixels: a.paintRTT},
+							CustomWidget{AssignTo: &a.p95Header, MinSize: Size{0, 24}, MaxSize: Size{0, 24}, InvalidatesOnResize: true, PaintPixels: a.paintP95Header},
+							CustomWidget{AssignTo: &a.p95Chart, MinSize: Size{0, 145}, InvalidatesOnResize: true, PaintPixels: a.paintP95},
+							CustomWidget{AssignTo: &a.lossHeader, MinSize: Size{0, 24}, MaxSize: Size{0, 24}, InvalidatesOnResize: true, PaintPixels: a.paintLossHeader},
+							CustomWidget{AssignTo: &a.lossChart, MinSize: Size{0, 145}, InvalidatesOnResize: true, PaintPixels: a.paintLoss},
+							CustomWidget{AssignTo: &a.jitterHeader, MinSize: Size{0, 24}, MaxSize: Size{0, 24}, InvalidatesOnResize: true, PaintPixels: a.paintJitterHeader},
+							CustomWidget{AssignTo: &a.jitterChart, MinSize: Size{0, 145}, InvalidatesOnResize: true, PaintPixels: a.paintJitter},
 						},
 					},
 				},
@@ -981,7 +981,7 @@ func (a *app) maxAggregatePoints() int {
 		if chart == nil {
 			continue
 		}
-		width = max(width, plotBounds(chart.ClientBounds()).Width)
+		width = max(width, plotBounds(chart.ClientBoundsPixels()).Width)
 	}
 	if width <= 0 {
 		width = 1000
@@ -1060,22 +1060,22 @@ func (a *app) invalidateCharts() {
 
 func (a *app) paintRTTHeader(canvas *walk.Canvas, bounds walk.Rectangle) error {
 	points, _, _ := a.rttPoints()
-	return drawChartHeader(canvas, bounds, "Realtime RTTs", lastItems(points, "ms", lostRTT, true))
+	return drawChartHeader(canvas, a.rttHeader.ClientBoundsPixels(), "Realtime RTTs", lastItems(points, "ms", lostRTT, true))
 }
 
 func (a *app) paintP95Header(canvas *walk.Canvas, bounds walk.Rectangle) error {
 	points, _ := a.p95Points()
-	return drawChartHeader(canvas, bounds, "RTT 95th PERCENTILE(msec), per "+periodLabel(a.period)+"'", lastItems(points, "ms", -1, false))
+	return drawChartHeader(canvas, a.p95Header.ClientBoundsPixels(), "RTT 95th PERCENTILE(msec), per "+periodLabel(a.period)+"'", lastItems(points, "ms", -1, false))
 }
 
 func (a *app) paintLossHeader(canvas *walk.Canvas, bounds walk.Rectangle) error {
 	points := a.lossPoints()
-	return drawChartHeader(canvas, bounds, "LOSS%, per "+periodLabel(a.period)+"'", lastItems(points, "%", -1, false))
+	return drawChartHeader(canvas, a.lossHeader.ClientBoundsPixels(), "LOSS%, per "+periodLabel(a.period)+"'", lastItems(points, "%", -1, false))
 }
 
 func (a *app) paintJitterHeader(canvas *walk.Canvas, bounds walk.Rectangle) error {
 	points, _ := a.jitterPoints()
-	return drawChartHeader(canvas, bounds, "ONE-WAY JITTER(msec), per "+periodLabel(a.period)+"'", lastItems(points, "ms", -1, false))
+	return drawChartHeader(canvas, a.jitterHeader.ClientBoundsPixels(), "ONE-WAY JITTER(msec), per "+periodLabel(a.period)+"'", lastItems(points, "ms", -1, false))
 }
 
 func (a *app) rttPoints() ([]chartPoint, time.Time, float64) {
@@ -1116,7 +1116,7 @@ func (a *app) rttPoints() ([]chartPoint, time.Time, float64) {
 
 func (a *app) paintRTT(canvas *walk.Canvas, bounds walk.Rectangle) error {
 	points, now, maxValue := a.rttPoints()
-	return drawTimeChart(canvas, a.rttChart.ClientBounds(), points, now.Add(-120*time.Second), now, 20*time.Second, 0, maxValue, "ms", walk.RGB(40, 150, 135))
+	return drawTimeChart(canvas, a.rttChart.ClientBoundsPixels(), points, now.Add(-120*time.Second), now, 20*time.Second, 0, maxValue, "ms", walk.RGB(40, 150, 135))
 }
 
 func (a *app) p95Points() ([]chartPoint, float64) {
@@ -1131,7 +1131,7 @@ func (a *app) p95Points() ([]chartPoint, float64) {
 
 func (a *app) paintP95(canvas *walk.Canvas, bounds walk.Rectangle) error {
 	points, maxValue := a.p95Points()
-	return a.drawAggregateChart(canvas, a.p95Chart.ClientBounds(), points, maxValue, "ms", walk.RGB(40, 150, 135))
+	return a.drawAggregateChart(canvas, a.p95Chart.ClientBoundsPixels(), points, maxValue, "ms", walk.RGB(40, 150, 135))
 }
 
 func (a *app) lossPoints() []chartPoint {
@@ -1144,7 +1144,7 @@ func (a *app) lossPoints() []chartPoint {
 }
 
 func (a *app) paintLoss(canvas *walk.Canvas, bounds walk.Rectangle) error {
-	return a.drawAggregateChart(canvas, a.lossChart.ClientBounds(), a.lossPoints(), 25, "%", walk.RGB(200, 75, 88))
+	return a.drawAggregateChart(canvas, a.lossChart.ClientBoundsPixels(), a.lossPoints(), 25, "%", walk.RGB(200, 75, 88))
 }
 
 func (a *app) jitterPoints() ([]chartPoint, float64) {
@@ -1159,7 +1159,7 @@ func (a *app) jitterPoints() ([]chartPoint, float64) {
 
 func (a *app) paintJitter(canvas *walk.Canvas, bounds walk.Rectangle) error {
 	points, maxValue := a.jitterPoints()
-	return a.drawAggregateChart(canvas, a.jitterChart.ClientBounds(), points, maxValue, "ms", walk.RGB(215, 160, 70))
+	return a.drawAggregateChart(canvas, a.jitterChart.ClientBoundsPixels(), points, maxValue, "ms", walk.RGB(215, 160, 70))
 }
 
 func (a *app) drawAggregateChart(canvas *walk.Canvas, rect walk.Rectangle, points []chartPoint, maxValue float64, unit string, color walk.Color) error {
@@ -1366,7 +1366,11 @@ func drawChartHeader(canvas *walk.Canvas, rect walk.Rectangle, title string, ite
 		widths = make([]int, len(parts))
 	}
 	for i, part := range parts {
-		w := max(8, len([]rune(part.Text))*7+2)
+		w, err := measureTextWidthPixels(canvas, valueFont, part.Text)
+		if err != nil {
+			return err
+		}
+		w = max(8, w+2)
 		widths[i] = w
 		total += w
 	}
@@ -1388,12 +1392,20 @@ func drawChartHeader(canvas *walk.Canvas, rect walk.Rectangle, title string, ite
 	y := rect.Y
 	for i, part := range parts {
 		bounds := walk.Rectangle{X: x, Y: y, Width: widths[i], Height: rect.Height}
-		if err := canvas.DrawTextPixels(part.Text, valueFont, part.Color, bounds, walk.TextLeft|walk.TextVCenter|walk.TextSingleLine|walk.TextEndEllipsis); err != nil {
+		if err := canvas.DrawTextPixels(part.Text, valueFont, part.Color, bounds, walk.TextLeft|walk.TextVCenter|walk.TextSingleLine); err != nil {
 			return err
 		}
 		x += widths[i]
 	}
 	return nil
+}
+
+func measureTextWidthPixels(canvas *walk.Canvas, font *walk.Font, text string) (int, error) {
+	bounds, _, err := canvas.MeasureTextPixels(text, font, walk.Rectangle{Width: 10000, Height: 1000}, walk.TextSingleLine|walk.TextCalcRect)
+	if err != nil {
+		return 0, err
+	}
+	return bounds.Width, nil
 }
 
 func drawPanel(canvas *walk.Canvas, rect walk.Rectangle) error {
