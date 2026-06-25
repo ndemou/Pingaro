@@ -1288,11 +1288,11 @@ func drawWarningBars(canvas *walk.Canvas, plot walk.Rectangle, points []chartPoi
 func severityColor(severity int) walk.Color {
 	switch severity {
 	case 1:
-		return walk.RGB(255, 250, 190)
+		return walk.RGB(208, 201, 231)
 	case 2:
-		return walk.RGB(255, 224, 190)
+		return walk.RGB(255, 250, 190)
 	default:
-		return walk.RGB(255, 205, 205)
+		return walk.RGB(255, 183, 206)
 	}
 }
 
