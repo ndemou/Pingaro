@@ -1,8 +1,9 @@
-<img width="1672" height="941" alt="ChatGPT Image 6 Ιουλ 2026, 09_12_18 μ μ" src="https://github.com/user-attachments/assets/8c5ee8f6-6f8c-48d1-a6e8-e45a47961da0" />## Pingaro
+<img width="427" height="316" alt="image" src="https://github.com/user-attachments/assets/0b9dab51-f80e-4157-81bd-75f1dac9956c" />
 
-Long term network quality monitor
-
-Pingaro is a native Windows desktop app for watching connection quality over time. It visualizes response time, packet loss, and jitter in real time and across longer aggregate windows.
+Pingaro is a Windows app for monitoring connection quality over time. If you are a network expert, it gives you
+clear visualizations of response time, packet loss, and jitter. If you are not, but just want to know whether your
+Internet connection is good enough, pick a usage profile, such as Audio Calls or Gaming, and let Pingaro highlight
+any quality issues it detects. You can leave it running in the background and review the results later.
 
 <img width="1094" height="926" alt="image" src="https://github.com/user-attachments/assets/f5136898-dfc7-461a-9123-9e4aefb93e33" />
 
@@ -36,8 +37,6 @@ When checking Internet quality, Pingaro can ping multiple well-known hosts in pa
 By default Pingaro selects `email & browsing`, `audio calls`, `video calls`, and `online gaming`. It leaves `remote desktop` and `Superhuman Gaming` unchecked.
 
 When multiple uses are selected, Pingaro grades good, medium, and bad measurements using the strictest threshold from the selected uses. The jitter graph is shown only when `audio calls` or `video calls` is selected.
-
-<img width="830" height="286" alt="image" src="https://github.com/user-attachments/assets/f4de817c-7d44-47bd-afbe-6377719ce7fb" />
 
 ## Metrics
 
