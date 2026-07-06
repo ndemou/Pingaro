@@ -43,6 +43,52 @@ func TestWindowIconResourceExists(t *testing.T) {
 	icon.Dispose()
 }
 
+func TestDefaultGroupColors(t *testing.T) {
+	got := defaultGroupColors()
+	want := []walk.Color{
+		walk.RGB(0, 0, 0),
+		walk.RGB(133, 0, 135),
+		walk.RGB(40, 124, 39),
+	}
+	if len(got) != len(want) {
+		t.Fatalf("len(defaultGroupColors) = %d, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("group color %d = %#x, want %#x", i+1, uint32(got[i]), uint32(want[i]))
+		}
+	}
+}
+
+func TestChartLineColorAllowsBlack(t *testing.T) {
+	fallback := walk.RGB(40, 150, 135)
+	if got := chartLineColor(map[int]walk.Color{0: walk.RGB(0, 0, 0)}, 0, fallback); got != walk.RGB(0, 0, 0) {
+		t.Fatalf("chartLineColor() = %#x, want black", uint32(got))
+	}
+	if got := chartLineColor(map[int]walk.Color{}, 0, fallback); got != fallback {
+		t.Fatalf("missing chartLineColor() = %#x, want fallback %#x", uint32(got), uint32(fallback))
+	}
+}
+
+func TestSeverityColors(t *testing.T) {
+	tests := []struct {
+		severity int
+		want     walk.Color
+	}{
+		{severity: 1, want: walk.RGB(193, 193, 200)},
+		{severity: 2, want: walk.RGB(252, 234, 144)},
+		{severity: 3, want: walk.RGB(248, 174, 175)},
+	}
+	for _, tt := range tests {
+		if got := severityColor(tt.severity); got != tt.want {
+			t.Fatalf("severityColor(%d) = %#x, want %#x", tt.severity, uint32(got), uint32(tt.want))
+		}
+		if got := summaryBackgroundColor(tt.severity); got != tt.want {
+			t.Fatalf("summaryBackgroundColor(%d) = %#x, want %#x", tt.severity, uint32(got), uint32(tt.want))
+		}
+	}
+}
+
 func TestDefaultGroupsPutGatewayBeforeInternet(t *testing.T) {
 	got := defaultGroups("192.168.1.1")
 	if len(got) != 2 {

@@ -342,11 +342,19 @@ func usesShowJitter(names []string) bool {
 func main() {
 	a := &app{
 		period:   120 * time.Second,
-		colors:   []walk.Color{walk.RGB(37, 99, 235), walk.RGB(20, 184, 166), walk.RGB(217, 70, 239)},
+		colors:   defaultGroupColors(),
 		settings: loadConfig(),
 	}
 	if err := a.run(); err != nil {
 		log.Fatal(err)
+	}
+}
+
+func defaultGroupColors() []walk.Color {
+	return []walk.Color{
+		walk.RGB(0, 0, 0),
+		walk.RGB(133, 0, 135),
+		walk.RGB(40, 124, 39),
 	}
 }
 
@@ -1674,10 +1682,7 @@ func drawTimeChart(canvas *walk.Canvas, rect walk.Rectangle, points []chartPoint
 		colors[p.groupIndex] = p.color
 	}
 	for groupIndex, linePoints := range byGroup {
-		lineColor := colors[groupIndex]
-		if lineColor == 0 {
-			lineColor = color
-		}
+		lineColor := chartLineColor(colors, groupIndex, color)
 		pen, err := walk.NewCosmeticPen(walk.PenSolid, lineColor)
 		if err != nil {
 			return err
@@ -1694,6 +1699,13 @@ func drawTimeChart(canvas *walk.Canvas, rect walk.Rectangle, points []chartPoint
 		}
 	}
 	return nil
+}
+
+func chartLineColor(colors map[int]walk.Color, groupIndex int, fallback walk.Color) walk.Color {
+	if lineColor, ok := colors[groupIndex]; ok {
+		return lineColor
+	}
+	return fallback
 }
 
 func yGridDivisions(chartHeight int) int {
@@ -1731,11 +1743,11 @@ func drawWarningBars(canvas *walk.Canvas, plot walk.Rectangle, points []chartPoi
 func severityColor(severity int) walk.Color {
 	switch severity {
 	case 1:
-		return walk.RGB(208, 201, 231)
+		return walk.RGB(193, 193, 200)
 	case 2:
-		return walk.RGB(255, 250, 190)
+		return walk.RGB(252, 234, 144)
 	default:
-		return walk.RGB(255, 183, 206)
+		return walk.RGB(248, 174, 175)
 	}
 }
 
