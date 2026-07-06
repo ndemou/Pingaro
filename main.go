@@ -30,6 +30,8 @@ import (
 
 const lostRTT = 9999
 
+const defaultInternetTargets = "1.1.1.1, 1.1.1.2, 8.8.8.8, 8.8.4.4"
+
 const (
 	rttChartHeight       = 150
 	aggregateChartHeight = 145
@@ -368,14 +370,18 @@ func defaultConfig() savedConfig {
 		PPS:                1,
 		AggregationSeconds: 120,
 		UseTypes:           defaultUseTypes(),
-		Groups: []savedGroup{
-			{Name: "Internet", Targets: "1.1.1.1, 1.1.1.2, 8.8.8.8, 8.8.4.4"},
-		},
-	}
-	if gw := defaultGateway(); gw != "" {
-		cfg.Groups = append(cfg.Groups, savedGroup{Name: "Gateway", Targets: gw})
+		Groups:             defaultGroups(defaultGateway()),
 	}
 	return cfg
+}
+
+func defaultGroups(gateway string) []savedGroup {
+	groups := make([]savedGroup, 0, 2)
+	if gateway = strings.TrimSpace(gateway); gateway != "" {
+		groups = append(groups, savedGroup{Name: "Gateway", Targets: gateway})
+	}
+	groups = append(groups, savedGroup{Name: "Internet", Targets: defaultInternetTargets})
+	return groups
 }
 
 func normalizeSavedGroups(groups []savedGroup) []savedGroup {

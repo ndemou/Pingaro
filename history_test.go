@@ -33,6 +33,29 @@ func TestParseHistoryRecordsMixedPrettyAndLineJSON(t *testing.T) {
 	}
 }
 
+func TestDefaultGroupsPutGatewayBeforeInternet(t *testing.T) {
+	got := defaultGroups("192.168.1.1")
+	if len(got) != 2 {
+		t.Fatalf("len(defaultGroups) = %d, want 2", len(got))
+	}
+	if got[0].Name != "Gateway" || got[0].Targets != "192.168.1.1" {
+		t.Fatalf("group 1 = %+v, want Gateway 192.168.1.1", got[0])
+	}
+	if got[1].Name != "Internet" || got[1].Targets != defaultInternetTargets {
+		t.Fatalf("group 2 = %+v, want Internet defaults", got[1])
+	}
+}
+
+func TestDefaultGroupsUseInternetWhenGatewayMissing(t *testing.T) {
+	got := defaultGroups("")
+	if len(got) != 1 {
+		t.Fatalf("len(defaultGroups) = %d, want 1", len(got))
+	}
+	if got[0].Name != "Internet" || got[0].Targets != defaultInternetTargets {
+		t.Fatalf("group 1 = %+v, want Internet defaults", got[0])
+	}
+}
+
 func TestBucketedYMaxUsesSmallestBucketCovering90Percent(t *testing.T) {
 	points := []chartPoint{
 		{value: 3},

@@ -44,7 +44,7 @@ When checking Internet quality, Pingaro can ping multiple well-known hosts in pa
 ## Typical Workflow
 
 1. Start `pingaro.exe`.
-2. Leave the default Internet targets, or enter one to three target groups.
+2. Leave the default Gateway and Internet targets, or enter one to three target groups.
 3. Select one or more Internet uses.
 4. Click `Start`.
 5. Watch the graphs for spikes, packet loss, or sustained jitter.
