@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GoPing Right VBox Spacing Only</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #111827;
+      color: #f9fafb;
+      font-family: "Segoe UI", Arial, sans-serif;
+    }
+
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 28px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 34px;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 0;
+      color: #d1d5db;
+      font-size: 17px;
+      line-height: 1.45;
+    }
+
+    .note {
+      margin-top: 12px;
+      padding: 14px 16px;
+      background: #1f2937;
+      border: 2px solid #6b7280;
+      border-radius: 8px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 260px minmax(420px, 1fr) 310px;
+      gap: 20px;
+      align-items: start;
+      margin-top: 26px;
+    }
+
+    .legend,
+    .explain {
+      background: #0b1020;
+      border: 2px solid #4b5563;
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    h2 {
+      margin: 0 0 14px;
+      font-size: 20px;
+    }
+
+    .legend-row {
+      display: grid;
+      grid-template-columns: 42px 1fr;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 12px;
+      font-size: 15px;
+    }
+
+    .swatch {
+      height: 30px;
+      border: 2px solid #fff;
+      border-radius: 4px;
+    }
+
+    .vbox-shell {
+      background: #000;
+      border: 6px solid #ffffff;
+      border-radius: 12px;
+      padding: 0;
+      box-shadow: 0 0 0 8px #2563eb, 0 18px 55px rgba(0, 0, 0, 0.45);
+    }
+
+    .vbox-title {
+      background: #2563eb;
+      color: #fff;
+      text-align: center;
+      font-weight: 800;
+      font-size: 20px;
+      padding: 12px;
+      border-bottom: 5px solid #fff;
+    }
+
+    .vbox {
+      padding: 18px;
+      background: #f9fafb;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .row {
+      border: 4px solid #111827;
+      border-radius: 8px;
+      color: #111827;
+      font-weight: 800;
+      font-size: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 10px;
+      min-height: 82px;
+      position: relative;
+    }
+
+    .row small {
+      display: block;
+      margin-top: 6px;
+      font-size: 15px;
+      font-weight: 700;
+      color: rgba(17, 24, 39, 0.78);
+    }
+
+    .label {
+      background: #f472b6;
+    }
+
+    .spacer {
+      min-height: 58px;
+      background: repeating-linear-gradient(
+        45deg,
+        #facc15,
+        #facc15 14px,
+        #fb923c 14px,
+        #fb923c 28px
+      );
+    }
+
+    .chart {
+      min-height: 126px;
+      background: #38bdf8;
+    }
+
+    .margin {
+      height: 62px;
+      background: #a78bfa;
+      border: 4px dashed #111827;
+      border-radius: 8px;
+      color: #111827;
+      font-weight: 900;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      margin-bottom: 0;
+    }
+
+    .arrow {
+      width: 100%;
+      min-height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #111827;
+      font-weight: 900;
+      font-size: 16px;
+    }
+
+    .no-extra {
+      background: #dcfce7;
+    }
+
+    .code {
+      background: #020617;
+      border: 1px solid #64748b;
+      color: #e5e7eb;
+      border-radius: 8px;
+      padding: 14px;
+      margin-top: 14px;
+      overflow-x: auto;
+      white-space: pre;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .formula {
+      margin-top: 16px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .formula-line {
+      background: #fff;
+      color: #111827;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 17px;
+      font-weight: 800;
+      border: 3px solid #111827;
+    }
+
+    .pink { background: #f472b6; }
+    .yellow { background: #facc15; }
+    .blue { background: #38bdf8; }
+    .purple { background: #a78bfa; }
+    .green { background: #86efac; }
+
+    .callout {
+      margin-top: 16px;
+      background: #7f1d1d;
+      color: #fff;
+      border: 3px solid #fecaca;
+      border-radius: 8px;
+      padding: 14px;
+      font-size: 16px;
+      line-height: 1.4;
+    }
+
+    @media (max-width: 1000px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Right VBox Spacing Only</h1>
+    <p>This page explains only the layout rows inside the right graph pane's vertical box. The drawing is intentionally not to scale so every row and spacer is easy to read.</p>
+
+    <div class="note">
+      The right graph pane has an outer margin of 4px on all sides. Inside that margin, the VBox stacks one 2px spacer, then graph widgets directly one after another. The VBox's own <strong>Spacing</strong> is zero.
+    </div>
+
+    <section class="layout">
+      <aside class="legend">
+        <h2>Color Key</h2>
+        <div class="legend-row">
+          <div class="swatch purple"></div>
+          <div>Pane margin: 4px around the whole VBox content</div>
+        </div>
+        <div class="legend-row">
+          <div class="swatch pink"></div>
+          <div>Status label is not in this VBox anymore; it lives under Save/Load</div>
+        </div>
+        <div class="legend-row">
+          <div class="swatch yellow"></div>
+          <div>Explicit VSpacer row: 2px before first graph only</div>
+        </div>
+        <div class="legend-row">
+          <div class="swatch blue"></div>
+          <div>Graph CustomWidget row: contains painted graph header and chart</div>
+        </div>
+        <div class="legend-row">
+          <div class="swatch green"></div>
+          <div>No hidden VBox spacing: layout spacing is 0</div>
+        </div>
+      </aside>
+
+      <section class="vbox-shell" aria-label="Right VBox visual diagram">
+        <div class="vbox-title">RIGHT GRAPH PANE VBox</div>
+        <div class="vbox">
+          <div class="margin">TOP MARGIN: 4px</div>
+          <div class="arrow">then first child starts</div>
+
+          <div class="row spacer">
+            <div>
+              VSpacer{Size: 2}
+              <small>this is the intended gap before the first graph widget</small>
+            </div>
+          </div>
+
+          <div class="row chart">
+            <div>
+              rttChart CustomWidget
+              <small>its title/header is painted inside this widget</small>
+            </div>
+          </div>
+
+          <div class="row chart">
+            <div>
+              p95Chart CustomWidget
+              <small>RTT per N' (p95)</small>
+            </div>
+          </div>
+
+          <div class="row chart">
+            <div>
+              lossChart CustomWidget
+              <small>Loss per N' (%)</small>
+            </div>
+          </div>
+
+          <div class="row chart">
+            <div>
+              jitterChart CustomWidget
+              <small>One-way Jitter per N' (p95)</small>
+            </div>
+          </div>
+
+          <div class="arrow">remaining height, if any, depends on chart sizing</div>
+          <div class="margin">BOTTOM MARGIN: 4px</div>
+        </div>
+      </section>
+
+      <aside class="explain">
+        <h2>Important Consequences</h2>
+        <div class="formula">
+          <div class="formula-line">
+            Top of pane to first spacer = 4px pane margin.
+          </div>
+          <div class="formula-line">
+            First spacer to first graph widget = 2px VSpacer.
+          </div>
+          <div class="formula-line">
+            Top of pane to first graph widget = 4px margin + 2px spacer.
+          </div>
+          <div class="formula-line">
+            Between graph widgets = 0px from the VBox point of view.
+          </div>
+        </div>
+
+        <div class="callout">
+          The title/header of each graph is not a separate VBox item. It is painted inside the blue CustomWidget. So when we say "space above the graph header", we must decide whether we mean space above the whole CustomWidget, or apparent visual space above the painted header inside it.
+        </div>
+
+        <div class="code">Composite{
+    Layout: VBox{
+        Margins: Margins{
+            Left: 4, Top: 4,
+            Right: 4, Bottom: 4,
+        },
+        Spacing: 0,
+    },
+    Children: []Widget{
+        VSpacer{Size: 2},
+        CustomWidget{rttChart},
+        CustomWidget{p95Chart},
+        CustomWidget{lossChart},
+        CustomWidget{jitterChart},
+    },
+}</div>
+      </aside>
+    </section>
+  </main>
+</body>
+</html>

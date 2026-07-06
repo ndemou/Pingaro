@@ -1,0 +1,675 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GoPing GUI Graph Spacing Explained</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --paper: #ffffff;
+      --ink: #17202a;
+      --muted: #5d6b7a;
+      --line: #cfd7e3;
+      --soft-line: #e7ecf3;
+      --blue: #2563eb;
+      --teal: #14b8a6;
+      --magenta: #d946ef;
+      --header: #dce6f7;
+      --chart: #f9fbff;
+      --plot: #eef7f3;
+      --padding: #fff5cc;
+      --spacer: #ffe1b5;
+      --label: #efe8ff;
+      --bad: #ffb7ce;
+      --warn: #fffabe;
+      --note: #d0c9e7;
+      --shadow: 0 18px 45px rgba(23, 32, 42, 0.11);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Segoe UI", Arial, sans-serif;
+      line-height: 1.45;
+    }
+
+    .page {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px 22px 40px;
+    }
+
+    header {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 24px;
+      align-items: end;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 20px;
+      margin-bottom: 22px;
+    }
+
+    h1, h2, h3, p {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: 32px;
+      line-height: 1.1;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      font-size: 20px;
+      margin-bottom: 12px;
+    }
+
+    h3 {
+      font-size: 15px;
+      margin-bottom: 8px;
+    }
+
+    .lede {
+      color: var(--muted);
+      font-size: 16px;
+      margin-top: 10px;
+      max-width: 740px;
+    }
+
+    .mini-summary {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .metric {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      box-shadow: 0 8px 24px rgba(23, 32, 42, 0.06);
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 18px;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(360px, 0.9fr);
+      gap: 20px;
+      align-items: start;
+    }
+
+    .panel {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      padding: 18px;
+      margin-bottom: 20px;
+    }
+
+    .wide {
+      grid-column: 1 / -1;
+    }
+
+    .code {
+      background: #101820;
+      color: #e8f0f7;
+      border-radius: 8px;
+      padding: 14px;
+      overflow-x: auto;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 13px;
+      white-space: pre;
+    }
+
+    .window {
+      border: 2px solid #7d8da3;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #edf2f7;
+    }
+
+    .titlebar {
+      height: 28px;
+      background: #d9e0ea;
+      border-bottom: 1px solid #b8c3d2;
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+      font-size: 12px;
+      color: #334155;
+    }
+
+    .app-body {
+      display: grid;
+      grid-template-columns: 1fr 3fr;
+      min-height: 430px;
+      background: #fff;
+    }
+
+    .left-pane {
+      border-right: 10px solid #b7c0cc;
+      padding: 8px;
+      background: #fff;
+    }
+
+    .right-pane {
+      padding: 8px;
+      background: #fff;
+    }
+
+    .fake-label,
+    .fake-input,
+    .fake-button {
+      height: 18px;
+      border-radius: 3px;
+      margin-bottom: 6px;
+    }
+
+    .fake-label {
+      background: #edf1f7;
+      width: 70%;
+    }
+
+    .fake-input {
+      background: #fff;
+      border: 1px solid #b7c0cc;
+      width: 82%;
+    }
+
+    .button-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      margin-top: 10px;
+    }
+
+    .fake-button {
+      background: #e9eef5;
+      border: 1px solid #b7c0cc;
+      margin: 0;
+    }
+
+    .current-label {
+      height: 18px;
+      background: var(--label);
+      border: 1px solid #cbbdf6;
+      color: #493b74;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      padding: 0 6px;
+      margin-bottom: 8px;
+    }
+
+    .v-spacer {
+      height: 8px;
+      background: var(--spacer);
+      border: 1px dashed #e09948;
+      position: relative;
+      margin-bottom: 0;
+    }
+
+    .v-spacer::after {
+      content: "8px VSpacer";
+      position: absolute;
+      right: 6px;
+      top: -1px;
+      font-size: 10px;
+      color: #7a4a10;
+    }
+
+    .chart-widget {
+      border: 2px solid #9aa9bc;
+      background: var(--chart);
+      margin-bottom: 8px;
+      position: relative;
+      min-height: 88px;
+    }
+
+    .chart-header {
+      height: 18px;
+      background: var(--header);
+      border-bottom: 1px solid #aebbd0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 8px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .header-last {
+      font-weight: 400;
+      color: #4b5563;
+    }
+
+    .header-gap {
+      height: 2px;
+      background: var(--bad);
+      position: relative;
+    }
+
+    .chart-area {
+      min-height: 86px;
+      padding: 10px 14px 24px 66px;
+      background:
+        linear-gradient(var(--soft-line) 1px, transparent 1px) 0 0 / 100% 24px,
+        var(--chart);
+      position: relative;
+    }
+
+    .plot {
+      height: 52px;
+      background: var(--plot);
+      border: 1px solid #aac8bd;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .plot::before {
+      content: "";
+      position: absolute;
+      inset: 12px 0 auto 0;
+      border-top: 2px solid var(--blue);
+      transform: rotate(-3deg);
+    }
+
+    .axis-bottom {
+      height: 24px;
+      background: var(--padding);
+      border: 1px dashed #d7ba55;
+      border-top: 0;
+      margin-left: 66px;
+      margin-right: 14px;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      color: #75612a;
+      font-size: 10px;
+    }
+
+    .legend {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 5px 9px;
+      background: #fff;
+      font-size: 12px;
+      color: #334155;
+    }
+
+    .swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      border: 1px solid rgba(0, 0, 0, 0.15);
+    }
+
+    .stack {
+      display: grid;
+      grid-template-columns: 150px minmax(220px, 1fr);
+      gap: 10px;
+      align-items: stretch;
+    }
+
+    .ruler {
+      display: grid;
+      grid-template-rows: 18px 8px 18px 2px 98px 8px 18px 2px 98px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .ruler > div {
+      display: flex;
+      align-items: center;
+      padding: 0 8px;
+      font-size: 12px;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    }
+
+    .r-label { background: var(--label); }
+    .r-spacer { background: var(--spacer); }
+    .r-header { background: var(--header); font-weight: 700; }
+    .r-gap { background: var(--bad); }
+    .r-chart {
+      background:
+        linear-gradient(#e3e8f0 1px, transparent 1px) 0 0 / 100% 25%,
+        var(--chart);
+    }
+
+    .callout {
+      border-left: 5px solid var(--blue);
+      background: #eef4ff;
+      padding: 12px 14px;
+      border-radius: 6px;
+      color: #26364a;
+      margin-top: 12px;
+    }
+
+    .formula {
+      display: grid;
+      grid-template-columns: repeat(5, auto);
+      gap: 8px;
+      align-items: center;
+      justify-content: start;
+      margin: 14px 0;
+      font-size: 15px;
+    }
+
+    .box {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 8px 10px;
+      background: #fff;
+      min-width: 68px;
+      text-align: center;
+    }
+
+    .box.yellow { background: var(--padding); }
+    .box.orange { background: var(--spacer); }
+    .box.blue { background: var(--header); }
+
+    .arrow {
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .comparison {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .bad-structure,
+    .good-structure {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fff;
+    }
+
+    .bad-structure h3 {
+      color: #8a3450;
+    }
+
+    .good-structure h3 {
+      color: #16675f;
+    }
+
+    .mini-block {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      margin-top: 8px;
+      overflow: hidden;
+      font-size: 12px;
+    }
+
+    .mini-block div {
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--soft-line);
+    }
+
+    .mini-block div:last-child {
+      border-bottom: 0;
+    }
+
+    .footer-note {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 18px;
+    }
+
+    @media (max-width: 900px) {
+      header,
+      .grid,
+      .comparison {
+        grid-template-columns: 1fr;
+      }
+
+      .mini-summary {
+        grid-template-columns: 1fr;
+      }
+
+      .stack {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <div>
+        <h1>GoPing GUI Graph Spacing</h1>
+        <p class="lede">A visual map of the right-side graph layout: what is native layout, what is hand-painted inside a custom widget, and why an 8px spacer can still look like a much larger visual gap.</p>
+      </div>
+      <div class="mini-summary">
+        <div class="metric">
+          <strong>VBox</strong>
+          <span>places the rows</span>
+        </div>
+        <div class="metric">
+          <strong>CustomWidget</strong>
+          <span>paints header + chart</span>
+        </div>
+        <div class="metric">
+          <strong>plotBounds</strong>
+          <span>adds internal padding</span>
+        </div>
+      </div>
+    </header>
+
+    <section class="grid">
+      <article class="panel">
+        <h2>1. Window Structure</h2>
+        <div class="window" aria-label="Simplified GoPing window layout">
+          <div class="titlebar">GoPing</div>
+          <div class="app-body">
+            <div class="left-pane">
+              <div class="fake-label"></div>
+              <div class="fake-label" style="width:52%"></div>
+              <div class="fake-input"></div>
+              <div class="fake-label" style="width:46%"></div>
+              <div class="fake-input"></div>
+              <div class="fake-label" style="width:58%; margin-top:14px"></div>
+              <div class="fake-input" style="width:72%"></div>
+              <div class="button-grid">
+                <div class="fake-button"></div>
+                <div class="fake-button"></div>
+                <div class="fake-button"></div>
+                <div class="fake-button"></div>
+              </div>
+            </div>
+            <div class="right-pane">
+              <div class="current-label">N pings, K secs</div>
+              <div class="v-spacer"></div>
+              <div class="chart-widget">
+                <div class="chart-header">
+                  <span>RTT (realtime)</span>
+                  <span class="header-last">Last = 3 ms(Internet)</span>
+                </div>
+                <div class="header-gap"></div>
+                <div class="chart-area">
+                  <div class="plot"></div>
+                </div>
+                <div class="axis-bottom"><span>12:10</span><span>12:11</span><span>12:12</span></div>
+              </div>
+              <div class="v-spacer"></div>
+              <div class="chart-widget">
+                <div class="chart-header">
+                  <span>RTT per 2' (p95)</span>
+                  <span class="header-last">Last = 8 ms</span>
+                </div>
+                <div class="header-gap"></div>
+                <div class="chart-area">
+                  <div class="plot"></div>
+                </div>
+                <div class="axis-bottom"><span>12:00</span><span>12:10</span><span>12:20</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="legend">
+          <span class="chip"><span class="swatch" style="background:var(--label)"></span>summary label row</span>
+          <span class="chip"><span class="swatch" style="background:var(--spacer)"></span>native VBox spacer</span>
+          <span class="chip"><span class="swatch" style="background:var(--header)"></span>painted graph header</span>
+          <span class="chip"><span class="swatch" style="background:var(--padding)"></span>internal axis padding</span>
+        </div>
+      </article>
+
+      <aside class="panel">
+        <h2>2. Actual VBox Rows</h2>
+        <div class="code">Right graph pane
+  Margins: 8px on all sides
+  Spacing: 0
+
+  currentLabel              native Label
+  VSpacer{Size: 8}          fixed row
+  rttChart                  CustomWidget
+  VSpacer{Size: 8}          fixed row
+  p95Chart                  CustomWidget
+  VSpacer{Size: 8}          fixed row
+  lossChart                 CustomWidget
+  VSpacer{Size: 8}          fixed row
+  jitterChart               CustomWidget</div>
+        <div class="callout">The VBox knows only about rows. It does not know that each graph widget paints its own title, header border, plot area, and time labels internally.</div>
+      </aside>
+
+      <article class="panel wide">
+        <h2>3. Pixel Stack Around Graph Headers</h2>
+        <div class="stack">
+          <div class="ruler">
+            <div class="r-label">~18px label</div>
+            <div class="r-spacer">8px spacer</div>
+            <div class="r-header">18px header</div>
+            <div class="r-gap">2px gap</div>
+            <div class="r-chart">chart area</div>
+            <div class="r-spacer">8px spacer</div>
+            <div class="r-header">18px header</div>
+            <div class="r-gap">2px gap</div>
+            <div class="r-chart">chart area</div>
+          </div>
+          <div>
+            <h3>What you see before the first graph</h3>
+            <p>The first graph is preceded by the summary label row and then an 8px spacer. If the label row is about 18px high, the empty-looking distance before the first graph header becomes about 26px.</p>
+            <div class="formula">
+              <div class="box blue">~18px label</div>
+              <div class="arrow">+</div>
+              <div class="box orange">8px spacer</div>
+              <div class="arrow">=</div>
+              <div class="box yellow">~26px before first header</div>
+            </div>
+            <h3>What you see between lower graph headers</h3>
+            <p>Between graph widgets, the native layout gap is 8px. But the previous graph also contains internal bottom room for time labels, so the visual empty area can look larger than the actual VBox spacer.</p>
+            <div class="formula">
+              <div class="box yellow">24px internal axis room</div>
+              <div class="arrow">+</div>
+              <div class="box orange">8px spacer</div>
+              <div class="arrow">=</div>
+              <div class="box yellow">larger visual gap</div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel">
+        <h2>4. Inside One CustomWidget</h2>
+        <div class="chart-widget" style="margin-bottom:0">
+          <div class="chart-header">
+            <span>Graph title is painted here</span>
+            <span class="header-last">Last = ...</span>
+          </div>
+          <div class="header-gap"></div>
+          <div class="chart-area" style="min-height:150px">
+            <div style="position:absolute; left:8px; top:8px; font-size:11px; color:#725c18;">10px chart top inset</div>
+            <div class="plot" style="height:92px">
+              <span style="position:absolute; left:8px; top:8px; font-size:11px; color:#16675f;">plot area</span>
+            </div>
+          </div>
+          <div class="axis-bottom">
+            <span>24px bottom inset</span>
+            <span>for X-axis timestamps</span>
+          </div>
+        </div>
+        <div class="callout">The header is not a native label widget. It is just pixels drawn at the top of the same widget that draws the graph.</div>
+      </article>
+
+      <article class="panel">
+        <h2>5. The Relevant Code</h2>
+        <div class="code">func combinedChartHeight(chartHeight int) int {
+    return chartHeaderHeight + headerChartGap + chartHeight
+}
+
+func splitChartBounds(rect walk.Rectangle) (...) {
+    headerHeight := 18
+    chartY := rect.Y + headerHeight + 2
+}
+
+func plotBounds(r walk.Rectangle) walk.Rectangle {
+    return inset(r, 66, 10, 14, 24)
+}</div>
+        <div class="legend">
+          <span class="chip"><span class="swatch" style="background:var(--header)"></span>18px header</span>
+          <span class="chip"><span class="swatch" style="background:var(--bad)"></span>2px header-to-chart gap</span>
+          <span class="chip"><span class="swatch" style="background:var(--padding)"></span>24px bottom inset</span>
+        </div>
+      </article>
+
+      <article class="panel wide">
+        <h2>6. Why This Is Hard To Tune</h2>
+        <div class="comparison">
+          <div class="bad-structure">
+            <h3>Current Mixed Structure</h3>
+            <p>Native layout and custom painting are mixed. The VBox controls only whole graph widgets, while visual subparts are painted manually inside each widget.</p>
+            <div class="mini-block">
+              <div>VBox row: currentLabel</div>
+              <div>VBox row: 8px spacer</div>
+              <div>VBox row: CustomWidget containing header + plot + axes</div>
+              <div>VBox row: 8px spacer</div>
+            </div>
+          </div>
+          <div class="good-structure">
+            <h3>Cleaner Future Structure</h3>
+            <p>Each graph block could be a real composite. Then header spacing, chart spacing, and axis padding would be controlled by separate layout rows.</p>
+            <div class="mini-block">
+              <div>GraphBlock</div>
+              <div>Header row: fixed 18px</div>
+              <div>Spacer row: fixed 2px</div>
+              <div>Chart-only CustomWidget</div>
+              <div>Between blocks: fixed 8px</div>
+            </div>
+          </div>
+        </div>
+        <p class="footer-note">The key diagnostic question is: are we measuring native space between widgets, or painted empty area inside a widget? In the current design those look similar on screen but come from different code paths.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

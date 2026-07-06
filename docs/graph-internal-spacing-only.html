@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GoPing Graph Internal Spacing Only</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #0f172a;
+      color: #f8fafc;
+      font-family: "Segoe UI", Arial, sans-serif;
+    }
+
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 34px;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 14px;
+      font-size: 21px;
+    }
+
+    p {
+      margin: 0;
+      color: #dbeafe;
+      font-size: 17px;
+      line-height: 1.45;
+    }
+
+    .note {
+      margin-top: 14px;
+      padding: 14px 16px;
+      background: #1e293b;
+      border: 3px solid #93c5fd;
+      border-radius: 8px;
+      color: #eff6ff;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 270px minmax(420px, 1fr) 330px;
+      gap: 20px;
+      align-items: start;
+      margin-top: 26px;
+    }
+
+    .panel {
+      background: #020617;
+      border: 3px solid #64748b;
+      border-radius: 10px;
+      padding: 16px;
+    }
+
+    .legend-row {
+      display: grid;
+      grid-template-columns: 46px 1fr;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 12px;
+      font-size: 15px;
+      color: #f8fafc;
+    }
+
+    .swatch {
+      height: 32px;
+      border: 3px solid #fff;
+      border-radius: 4px;
+    }
+
+    .graph-shell {
+      background: #000;
+      border: 7px solid #ffffff;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 0 0 8px #ef4444, 0 22px 60px rgba(0, 0, 0, 0.5);
+    }
+
+    .graph-title {
+      background: #ef4444;
+      color: white;
+      text-align: center;
+      font-size: 22px;
+      font-weight: 900;
+      padding: 12px;
+      border-bottom: 6px solid #fff;
+    }
+
+    .graph {
+      background: #f8fafc;
+      color: #111827;
+      padding: 0;
+    }
+
+    .row {
+      border: 4px solid #111827;
+      color: #111827;
+      font-weight: 900;
+      font-size: 21px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 10px;
+      min-height: 72px;
+    }
+
+    .row small {
+      display: block;
+      margin-top: 6px;
+      font-size: 15px;
+      font-weight: 800;
+      color: rgba(17, 24, 39, 0.75);
+    }
+
+    .header {
+      background: #60a5fa;
+      min-height: 82px;
+    }
+
+    .header-gap {
+      background: repeating-linear-gradient(
+        45deg,
+        #fb7185,
+        #fb7185 12px,
+        #fecdd3 12px,
+        #fecdd3 24px
+      );
+      min-height: 52px;
+    }
+
+    .chart-rect {
+      background: #e2e8f0;
+      padding: 0;
+      display: block;
+      border: 4px solid #111827;
+    }
+
+    .chart-label {
+      background: #334155;
+      color: #fff;
+      text-align: center;
+      font-size: 20px;
+      font-weight: 900;
+      padding: 10px;
+      border-bottom: 4px solid #111827;
+    }
+
+    .chart-grid {
+      display: grid;
+      grid-template-columns: 120px minmax(240px, 1fr) 70px;
+      grid-template-rows: 62px 190px 78px;
+      min-height: 330px;
+    }
+
+    .inset-left {
+      grid-row: 1 / 4;
+      grid-column: 1;
+      background: #c084fc;
+      border-right: 4px solid #111827;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-size: 18px;
+      font-weight: 900;
+      writing-mode: vertical-rl;
+      transform: rotate(180deg);
+    }
+
+    .inset-top {
+      grid-row: 1;
+      grid-column: 2;
+      background: #fde047;
+      border-bottom: 4px solid #111827;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 19px;
+      font-weight: 900;
+    }
+
+    .inset-right {
+      grid-row: 1 / 4;
+      grid-column: 3;
+      background: #f97316;
+      border-left: 4px solid #111827;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-size: 18px;
+      font-weight: 900;
+      writing-mode: vertical-rl;
+    }
+
+    .plot {
+      grid-row: 2;
+      grid-column: 2;
+      background:
+        linear-gradient(#bbf7d0 3px, transparent 3px) 0 0 / 100% 25%,
+        linear-gradient(90deg, #bbf7d0 3px, transparent 3px) 0 0 / 25% 100%,
+        #22c55e;
+      border: 5px solid #064e3b;
+      position: relative;
+      overflow: hidden;
+      color: #052e16;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      font-weight: 1000;
+    }
+
+    .plot::after {
+      content: "";
+      position: absolute;
+      left: 8%;
+      right: 8%;
+      top: 58%;
+      border-top: 8px solid #1d4ed8;
+      transform: rotate(-8deg);
+    }
+
+    .inset-bottom {
+      grid-row: 3;
+      grid-column: 2;
+      background: #facc15;
+      border-top: 4px solid #111827;
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      text-align: center;
+      font-size: 18px;
+      font-weight: 900;
+    }
+
+    .code {
+      background: #030712;
+      border: 2px solid #64748b;
+      color: #e5e7eb;
+      border-radius: 8px;
+      padding: 14px;
+      overflow-x: auto;
+      white-space: pre;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .formula {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .formula-line {
+      background: #fff;
+      color: #111827;
+      border: 3px solid #111827;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 16px;
+      font-weight: 900;
+    }
+
+    .warning {
+      margin-top: 16px;
+      background: #7f1d1d;
+      border: 3px solid #fecaca;
+      color: #fff;
+      border-radius: 8px;
+      padding: 14px;
+      font-size: 16px;
+      line-height: 1.4;
+    }
+
+    .blue { background: #60a5fa; }
+    .pink { background: #fb7185; }
+    .slate { background: #e2e8f0; }
+    .purple { background: #c084fc; }
+    .yellow { background: #fde047; }
+    .green { background: #22c55e; }
+    .orange { background: #f97316; }
+    .gold { background: #facc15; }
+
+    @media (max-width: 1000px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Spacing Inside One Graph Widget</h1>
+    <p>This page ignores the outer right VBox. It explains only what happens inside one graph CustomWidget after the VBox has already placed it on screen.</p>
+
+    <div class="note">
+      The graph title is not a separate native label. The title, the "Last = ..." text, the header border, the chart, the axes, and the timestamps are all painted inside one CustomWidget.
+    </div>
+
+    <section class="layout">
+      <aside class="panel">
+        <h2>Color Key</h2>
+        <div class="legend-row">
+          <div class="swatch blue"></div>
+          <div>Header rectangle: graph title and Last values</div>
+        </div>
+        <div class="legend-row">
+          <div class="swatch pink"></div>
+          <div>Header-to-chart gap: 2px in the code</div>
+        </div>
+        <div class="legend-row">
+          <div class="swatch slate"></div>
+          <div>Chart rectangle passed to drawTimeChart</div>
+        </div>
+        <div class="legend-row">
+          <div class="swatch purple"></div>
+          <div>Left inset: 66px for Y-axis labels</div>
+        </div>
+        <div class="legend-row">
+          <div class="swatch yellow"></div>
+          <div>Top inset: 10px above plot area</div>
+        </div>
+        <div class="legend-row">
+          <div class="swatch orange"></div>
+          <div>Right inset: 14px</div>
+        </div>
+        <div class="legend-row">
+          <div class="swatch green"></div>
+          <div>Actual plot area</div>
+        </div>
+        <div class="legend-row">
+          <div class="swatch gold"></div>
+          <div>Bottom inset: 24px for X-axis timestamps</div>
+        </div>
+      </aside>
+
+      <section class="graph-shell" aria-label="Graph CustomWidget internal spacing diagram">
+        <div class="graph-title">ONE GRAPH CUSTOMWIDGET</div>
+        <div class="graph">
+          <div class="row header">
+            <div>
+              headerRect
+              <small>18px: title on left, Last values on right</small>
+            </div>
+          </div>
+
+          <div class="row header-gap">
+            <div>
+              headerChartGap
+              <small>2px between headerRect and chartRect</small>
+            </div>
+          </div>
+
+          <div class="chart-rect">
+            <div class="chart-label">chartRect passed to drawTimeChart</div>
+            <div class="chart-grid">
+              <div class="inset-left">LEFT INSET 66px</div>
+              <div class="inset-top">TOP INSET 10px</div>
+              <div class="inset-right">RIGHT INSET 14px</div>
+              <div class="plot">PLOT AREA</div>
+              <div class="inset-bottom">
+                <span>BOTTOM INSET 24px</span>
+                <span>12:00</span>
+                <span>12:10</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="panel">
+        <h2>Relevant Code</h2>
+        <div class="code">const (
+    chartHeaderHeight = 18
+    headerChartGap    = 2
+)
+
+func combinedChartHeight(chartHeight int) int {
+    return chartHeaderHeight +
+        headerChartGap +
+        chartHeight
+}
+
+func splitChartBounds(rect walk.Rectangle) (...) {
+    headerHeight := 18
+    header = rect top 18px
+
+    chartY := rect.Y +
+        headerHeight +
+        headerChartGap
+
+    chart = remaining area
+}
+
+func plotBounds(r walk.Rectangle) walk.Rectangle {
+    return inset(r, 66, 10, 14, 24)
+}</div>
+
+        <div class="formula">
+          <div class="formula-line">Graph widget height = 18px header + 2px gap + chart height.</div>
+          <div class="formula-line">Plot starts 10px below the chartRect top.</div>
+          <div class="formula-line">Plot starts 66px to the right of chartRect left.</div>
+          <div class="formula-line">Plot ends 24px above chartRect bottom.</div>
+          <div class="formula-line">X-axis timestamps are drawn in that 24px bottom inset.</div>
+        </div>
+
+        <div class="warning">
+          If you measure from the bottom of plotted data to the next graph header, you may include this graph's internal 24px bottom inset plus the outer VBox spacer. That is different from measuring the native space between two CustomWidget rectangles.
+        </div>
+      </aside>
+    </section>
+  </main>
+</body>
+</html>

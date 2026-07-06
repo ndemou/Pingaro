@@ -63,3 +63,33 @@ func TestAggregateVisiblePointLimitScalesWithGroupCount(t *testing.T) {
 		t.Fatalf("aggregateVisiblePointLimit() = %d, want 300", got)
 	}
 }
+
+func TestRedistributedChartHeightsSharesShrunkSpace(t *testing.T) {
+	got := redistributedChartHeights(aggregateChartHeight/3, aggregateChartHeight)
+	wantTotal := rttChartHeight + 3*aggregateChartHeight
+	gotTotal := got[0] + got[1] + got[2] + got[3]
+	if gotTotal != wantTotal {
+		t.Fatalf("total redistributed height = %d, want %d", gotTotal, wantTotal)
+	}
+	if got[2] != aggregateChartHeight/3 {
+		t.Fatalf("loss height = %d, want %d", got[2], aggregateChartHeight/3)
+	}
+	if got[0] <= rttChartHeight || got[1] <= aggregateChartHeight || got[3] <= aggregateChartHeight {
+		t.Fatalf("unshrunk graphs did not receive saved height: got %v", got)
+	}
+}
+
+func TestRedistributedChartHeightsLeavesNoInterGraphWasteWhenBothShrink(t *testing.T) {
+	got := redistributedChartHeights(aggregateChartHeight/3, aggregateChartHeight/2)
+	wantTotal := rttChartHeight + 3*aggregateChartHeight
+	gotTotal := got[0] + got[1] + got[2] + got[3]
+	if gotTotal != wantTotal {
+		t.Fatalf("total redistributed height = %d, want %d", gotTotal, wantTotal)
+	}
+	if got[2] != aggregateChartHeight/3 || got[3] != aggregateChartHeight/2 {
+		t.Fatalf("shrunk graph heights changed unexpectedly: got %v", got)
+	}
+	if got[0] <= rttChartHeight || got[1] <= aggregateChartHeight {
+		t.Fatalf("remaining graphs did not receive saved height: got %v", got)
+	}
+}

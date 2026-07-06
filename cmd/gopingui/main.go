@@ -199,6 +199,8 @@ type app struct {
 	historyViewEnd    time.Time
 	startedAt         time.Time
 	sessionPings      int
+	rttChartHeight    int
+	p95ChartHeight    int
 	lossChartHeight   int
 	jitterChartHeight int
 }
@@ -428,22 +430,19 @@ func (a *app) run() error {
 									PushButton{Text: "Load", OnClicked: a.loadHistoryDialog},
 								},
 							},
+							Label{AssignTo: &a.currentLabel, Text: "No samples yet"},
 							VSpacer{},
 						},
 					},
 					Composite{
 						StretchFactor: 3,
-						Layout:        VBox{Margins: Margins{Left: 8, Top: 8, Right: 8, Bottom: 8}, Spacing: 0},
+						Layout:        VBox{Margins: Margins{Left: 4, Top: 4, Right: 4, Bottom: 4}, Spacing: 0},
 						Children: []Widget{
-							Label{AssignTo: &a.currentLabel, Text: "No samples yet"},
-							VSpacer{Size: 8},
-							CustomWidget{AssignTo: &a.rttChart, MinSize: Size{0, combinedChartHeight(rttChartHeight)}, InvalidatesOnResize: true, PaintPixels: a.paintRTT},
-							VSpacer{Size: 8},
-							CustomWidget{AssignTo: &a.p95Chart, MinSize: Size{0, combinedChartHeight(aggregateChartHeight)}, InvalidatesOnResize: true, PaintPixels: a.paintP95},
-							VSpacer{Size: 8},
-							CustomWidget{AssignTo: &a.lossChart, MinSize: Size{0, combinedChartHeight(aggregateChartHeight)}, InvalidatesOnResize: true, PaintPixels: a.paintLoss},
-							VSpacer{Size: 8},
-							CustomWidget{AssignTo: &a.jitterChart, MinSize: Size{0, combinedChartHeight(aggregateChartHeight)}, InvalidatesOnResize: true, PaintPixels: a.paintJitter},
+							VSpacer{Size: 2},
+							CustomWidget{AssignTo: &a.rttChart, MinSize: Size{0, combinedChartHeight(rttChartHeight)}, StretchFactor: rttChartHeight, InvalidatesOnResize: true, PaintPixels: a.paintRTT},
+							CustomWidget{AssignTo: &a.p95Chart, MinSize: Size{0, combinedChartHeight(aggregateChartHeight)}, StretchFactor: aggregateChartHeight, InvalidatesOnResize: true, PaintPixels: a.paintP95},
+							CustomWidget{AssignTo: &a.lossChart, MinSize: Size{0, combinedChartHeight(aggregateChartHeight)}, StretchFactor: aggregateChartHeight, InvalidatesOnResize: true, PaintPixels: a.paintLoss},
+							CustomWidget{AssignTo: &a.jitterChart, MinSize: Size{0, combinedChartHeight(aggregateChartHeight)}, StretchFactor: aggregateChartHeight, InvalidatesOnResize: true, PaintPixels: a.paintJitter},
 						},
 					},
 				},
@@ -1067,13 +1066,15 @@ func (a *app) invalidateCharts() {
 }
 
 func (a *app) updateAdaptiveChartHeights() {
-	if a.lossChart != nil {
-		a.setChartHeight(a.lossChart, &a.lossChartHeight, adaptiveLossHeight(a.lossPoints()))
+	if a.rttChart == nil || a.p95Chart == nil || a.lossChart == nil || a.jitterChart == nil {
+		return
 	}
-	if a.jitterChart != nil {
-		points, _ := a.jitterPoints()
-		a.setChartHeight(a.jitterChart, &a.jitterChartHeight, adaptiveJitterHeight(points))
-	}
+	jitterPoints, _ := a.jitterPoints()
+	heights := redistributedChartHeights(adaptiveLossHeight(a.lossPoints()), adaptiveJitterHeight(jitterPoints))
+	a.setChartHeight(a.rttChart, &a.rttChartHeight, heights[0])
+	a.setChartHeight(a.p95Chart, &a.p95ChartHeight, heights[1])
+	a.setChartHeight(a.lossChart, &a.lossChartHeight, heights[2])
+	a.setChartHeight(a.jitterChart, &a.jitterChartHeight, heights[3])
 }
 
 func (a *app) setChartHeight(chart *walk.CustomWidget, current *int, height int) {
@@ -1082,11 +1083,55 @@ func (a *app) setChartHeight(chart *walk.CustomWidget, current *int, height int)
 	}
 	*current = height
 	combinedHeight := combinedChartHeight(height)
-	_ = chart.SetMinMaxSize(walk.Size{Width: 0, Height: combinedHeight}, walk.Size{Width: 1 << 20, Height: combinedHeight})
+	_ = chart.SetMinMaxSize(walk.Size{Width: 0, Height: combinedHeight}, walk.Size{Width: 1 << 20, Height: 1 << 20})
+	if parent := chart.Parent(); parent != nil {
+		if layout := parent.Layout(); layout != nil {
+			if stretchLayout, ok := layout.(interface {
+				SetStretchFactor(walk.Widget, int) error
+			}); ok {
+				_ = stretchLayout.SetStretchFactor(chart, height)
+			}
+		}
+	}
 }
 
 func combinedChartHeight(chartHeight int) int {
 	return chartHeaderHeight + headerChartGap + chartHeight
+}
+
+func redistributedChartHeights(lossHeight, jitterHeight int) [4]int {
+	base := [4]int{rttChartHeight, aggregateChartHeight, aggregateChartHeight, aggregateChartHeight}
+	heights := [4]int{base[0], base[1], clampInt(lossHeight, 1, base[2]), clampInt(jitterHeight, 1, base[3])}
+	saved := (base[2] - heights[2]) + (base[3] - heights[3])
+	if saved <= 0 {
+		return heights
+	}
+
+	receiverWeight := 0
+	for i := range heights {
+		if heights[i] == base[i] {
+			receiverWeight += base[i]
+		}
+	}
+	if receiverWeight <= 0 {
+		return heights
+	}
+
+	remaining := saved
+	lastReceiver := -1
+	for i := range heights {
+		if heights[i] != base[i] {
+			continue
+		}
+		lastReceiver = i
+		add := saved * base[i] / receiverWeight
+		heights[i] += add
+		remaining -= add
+	}
+	if lastReceiver >= 0 {
+		heights[lastReceiver] += remaining
+	}
+	return heights
 }
 
 func splitChartBounds(rect walk.Rectangle) (header walk.Rectangle, chart walk.Rectangle) {
@@ -1402,9 +1447,6 @@ func lastItems(points []chartPoint, unit string, special float64, includeGroupNa
 }
 
 func drawChartHeader(canvas *walk.Canvas, rect walk.Rectangle, title string, items []lastItem) error {
-	if err := drawHeaderDebugBorder(canvas, rect); err != nil {
-		return err
-	}
 	titleFont, err := walk.NewFont("Segoe UI", 10, walk.FontBold)
 	if err != nil {
 		return err
@@ -1463,15 +1505,6 @@ func drawChartHeader(canvas *walk.Canvas, rect walk.Rectangle, title string, ite
 		x += widths[i]
 	}
 	return nil
-}
-
-func drawHeaderDebugBorder(canvas *walk.Canvas, rect walk.Rectangle) error {
-	border, err := walk.NewCosmeticPen(walk.PenSolid, walk.RGB(185, 192, 200))
-	if err != nil {
-		return err
-	}
-	defer border.Dispose()
-	return canvas.DrawRectanglePixels(border, walk.Rectangle{X: rect.X, Y: rect.Y, Width: rect.Width - 1, Height: rect.Height - 1})
 }
 
 func measureTextWidthPixels(canvas *walk.Canvas, font *walk.Font, text string) (int, error) {
