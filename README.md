@@ -43,9 +43,13 @@ When checking Internet quality, Pingaro can ping multiple well-known hosts in pa
 
 1. Start `pingaro.exe`.
 2. Leave the default Internet targets, or enter one to three target groups.
-3. Pick the type of Internet use you care about.
+3. Select one or more Internet uses.
 4. Click `Start`.
 5. Watch the graphs for spikes, packet loss, or sustained jitter.
+
+By default Pingaro selects `email & browsing`, `audio calls`, `video calls`, and `online gaming`. It leaves `remote desktop` and `Superhuman Gaming` unchecked.
+
+When multiple uses are selected, Pingaro grades good, medium, and bad measurements using the strictest threshold from the selected uses. The jitter graph is shown only when `audio calls` or `video calls` is selected.
 
 ## Metrics
 

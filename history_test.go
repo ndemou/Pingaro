@@ -65,7 +65,7 @@ func TestAggregateVisiblePointLimitScalesWithGroupCount(t *testing.T) {
 }
 
 func TestRedistributedChartHeightsSharesShrunkSpace(t *testing.T) {
-	got := redistributedChartHeights(aggregateChartHeight/3, aggregateChartHeight)
+	got := redistributedChartHeights(aggregateChartHeight/3, aggregateChartHeight, true)
 	wantTotal := rttChartHeight + 3*aggregateChartHeight
 	gotTotal := got[0] + got[1] + got[2] + got[3]
 	if gotTotal != wantTotal {
@@ -80,7 +80,7 @@ func TestRedistributedChartHeightsSharesShrunkSpace(t *testing.T) {
 }
 
 func TestRedistributedChartHeightsLeavesNoInterGraphWasteWhenBothShrink(t *testing.T) {
-	got := redistributedChartHeights(aggregateChartHeight/3, aggregateChartHeight/2)
+	got := redistributedChartHeights(aggregateChartHeight/3, aggregateChartHeight/2, true)
 	wantTotal := rttChartHeight + 3*aggregateChartHeight
 	gotTotal := got[0] + got[1] + got[2] + got[3]
 	if gotTotal != wantTotal {
@@ -91,5 +91,66 @@ func TestRedistributedChartHeightsLeavesNoInterGraphWasteWhenBothShrink(t *testi
 	}
 	if got[0] <= rttChartHeight || got[1] <= aggregateChartHeight {
 		t.Fatalf("remaining graphs did not receive saved height: got %v", got)
+	}
+}
+
+func TestRedistributedChartHeightsHidesJitterAndSharesSpace(t *testing.T) {
+	got := redistributedChartHeights(aggregateChartHeight, 0, false)
+	wantTotal := rttChartHeight + 3*aggregateChartHeight
+	gotTotal := got[0] + got[1] + got[2] + got[3]
+	if gotTotal != wantTotal {
+		t.Fatalf("total redistributed height = %d, want %d", gotTotal, wantTotal)
+	}
+	if got[3] != 0 {
+		t.Fatalf("hidden jitter height = %d, want 0", got[3])
+	}
+	if got[0] <= rttChartHeight || got[1] <= aggregateChartHeight || got[2] <= aggregateChartHeight {
+		t.Fatalf("visible graphs did not receive hidden jitter space: got %v", got)
+	}
+}
+
+func TestDefaultUseTypesExcludeRemoteDesktopAndSuperhumanGaming(t *testing.T) {
+	got := useTypeSet(defaultUseTypes())
+	for _, name := range []string{"email & browsing", "audio calls", "video calls", "online gaming"} {
+		if !got[name] {
+			t.Fatalf("default uses missing %q: got %v", name, defaultUseTypes())
+		}
+	}
+	for _, name := range []string{"remote desktop", "Superhuman Gaming"} {
+		if got[name] {
+			t.Fatalf("default uses unexpectedly include %q: got %v", name, defaultUseTypes())
+		}
+	}
+}
+
+func TestProfileForUsesUsesMostDemandingThresholds(t *testing.T) {
+	got := profileForUses([]string{"email & browsing", "online gaming", "video calls"})
+	if got.RTT != [3]float64{80, 140, 220} {
+		t.Fatalf("RTT thresholds = %v, want [80 140 220]", got.RTT)
+	}
+	if got.Loss != [3]float64{0.5, 1.5, 4} {
+		t.Fatalf("loss thresholds = %v, want [0.5 1.5 4]", got.Loss)
+	}
+	if got.Jitter != [3]float64{15, 30, 60} {
+		t.Fatalf("jitter thresholds = %v, want [15 30 60]", got.Jitter)
+	}
+}
+
+func TestUsesShowJitterOnlyForAudioOrVideoCalls(t *testing.T) {
+	if usesShowJitter([]string{"email & browsing", "online gaming"}) {
+		t.Fatal("usesShowJitter returned true without audio or video calls")
+	}
+	if !usesShowJitter([]string{"audio calls"}) {
+		t.Fatal("usesShowJitter returned false for audio calls")
+	}
+	if !usesShowJitter([]string{"video calls"}) {
+		t.Fatal("usesShowJitter returned false for video calls")
+	}
+}
+
+func TestNormalizeUseTypesRenamesLowLatencyGaming(t *testing.T) {
+	got := normalizeUseTypes([]string{"low latency gaming"}, "")
+	if len(got) != 1 || got[0] != "Superhuman Gaming" {
+		t.Fatalf("normalizeUseTypes(low latency gaming) = %v, want [Superhuman Gaming]", got)
 	}
 }

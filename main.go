@@ -156,7 +156,8 @@ type savedConfig struct {
 	Groups             []savedGroup `json:"groups"`
 	PPS                int          `json:"pps"`
 	AggregationSeconds int          `json:"aggregationSeconds"`
-	UseType            string       `json:"useType"`
+	UseType            string       `json:"useType,omitempty"`
+	UseTypes           []string     `json:"useTypes,omitempty"`
 }
 
 type savedGroup struct {
@@ -165,10 +166,12 @@ type savedGroup struct {
 }
 
 type useProfile struct {
-	Name   string
-	RTT    [3]float64
-	Loss   [3]float64
-	Jitter [3]float64
+	Name            string
+	RTT             [3]float64
+	Loss            [3]float64
+	Jitter          [3]float64
+	DefaultSelected bool
+	ShowsJitter     bool
 }
 
 type app struct {
@@ -176,7 +179,7 @@ type app struct {
 
 	groupNames   [3]*walk.LineEdit
 	groupTargets [3]*walk.LineEdit
-	useType      *walk.ComboBox
+	useChecks    [6]*walk.CheckBox
 	pps          *walk.LineEdit
 	agg          *walk.LineEdit
 	startButton  *walk.PushButton
@@ -205,52 +208,113 @@ type app struct {
 	jitterChartHeight int
 }
 
+var useProfiles = []useProfile{
+	{Name: "email & browsing", RTT: [3]float64{250, 500, 1000}, Loss: [3]float64{3, 8, 15}, Jitter: [3]float64{80, 150, 300}, DefaultSelected: true},
+	{Name: "remote desktop", RTT: [3]float64{120, 200, 350}, Loss: [3]float64{1, 3, 8}, Jitter: [3]float64{30, 60, 120}},
+	{Name: "audio calls", RTT: [3]float64{120, 180, 300}, Loss: [3]float64{1, 3, 6}, Jitter: [3]float64{20, 40, 80}, DefaultSelected: true, ShowsJitter: true},
+	{Name: "video calls", RTT: [3]float64{150, 250, 400}, Loss: [3]float64{2, 5, 10}, Jitter: [3]float64{30, 60, 120}, DefaultSelected: true, ShowsJitter: true},
+	{Name: "online gaming", RTT: [3]float64{80, 140, 220}, Loss: [3]float64{0.5, 1.5, 4}, Jitter: [3]float64{15, 30, 60}, DefaultSelected: true},
+	{Name: "Superhuman Gaming", RTT: [3]float64{40, 80, 140}, Loss: [3]float64{0.2, 1, 2.5}, Jitter: [3]float64{8, 18, 35}},
+}
+
 func useTypes() []string {
-	return []string{
-		"email & browsing",
-		"remote desktop",
-		"audio calls",
-		"video calls",
-		"online gaming",
-		"low latency gaming",
+	names := make([]string, 0, len(useProfiles))
+	for _, profile := range useProfiles {
+		names = append(names, profile.Name)
 	}
+	return names
+}
+
+func defaultUseTypes() []string {
+	names := make([]string, 0, len(useProfiles))
+	for _, profile := range useProfiles {
+		if profile.DefaultSelected {
+			names = append(names, profile.Name)
+		}
+	}
+	return names
 }
 
 func normalizeUseType(value string) string {
 	value = strings.TrimSpace(strings.ToLower(value))
-	for _, t := range useTypes() {
-		if value == strings.ToLower(t) {
-			return t
+	if value == "low latency gaming" {
+		value = strings.ToLower("Superhuman Gaming")
+	}
+	for _, profile := range useProfiles {
+		if value == strings.ToLower(profile.Name) {
+			return profile.Name
 		}
 	}
-	return useTypes()[0]
+	return ""
 }
 
-func useTypeIndex(value string) int {
-	value = normalizeUseType(value)
-	for i, t := range useTypes() {
-		if t == value {
-			return i
+func normalizeUseTypes(values []string, legacyValue string) []string {
+	seen := map[string]bool{}
+	var normalized []string
+	for _, value := range values {
+		name := normalizeUseType(value)
+		if name == "" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		normalized = append(normalized, name)
+	}
+	if len(normalized) == 0 && strings.TrimSpace(legacyValue) != "" {
+		if name := normalizeUseType(legacyValue); name != "" {
+			normalized = append(normalized, name)
 		}
 	}
-	return 0
+	if len(normalized) == 0 {
+		return defaultUseTypes()
+	}
+	return normalized
 }
 
-func profileFor(value string) useProfile {
-	switch normalizeUseType(value) {
-	case "remote desktop":
-		return useProfile{Name: "remote desktop", RTT: [3]float64{120, 200, 350}, Loss: [3]float64{1, 3, 8}, Jitter: [3]float64{30, 60, 120}}
-	case "audio calls":
-		return useProfile{Name: "audio calls", RTT: [3]float64{120, 180, 300}, Loss: [3]float64{1, 3, 6}, Jitter: [3]float64{20, 40, 80}}
-	case "video calls":
-		return useProfile{Name: "video calls", RTT: [3]float64{150, 250, 400}, Loss: [3]float64{2, 5, 10}, Jitter: [3]float64{30, 60, 120}}
-	case "online gaming":
-		return useProfile{Name: "online gaming", RTT: [3]float64{80, 140, 220}, Loss: [3]float64{0.5, 1.5, 4}, Jitter: [3]float64{15, 30, 60}}
-	case "low latency gaming":
-		return useProfile{Name: "low latency gaming", RTT: [3]float64{40, 80, 140}, Loss: [3]float64{0.2, 1, 2.5}, Jitter: [3]float64{8, 18, 35}}
-	default:
-		return useProfile{Name: "email & browsing", RTT: [3]float64{250, 500, 1000}, Loss: [3]float64{3, 8, 15}, Jitter: [3]float64{80, 150, 300}}
+func useTypeSet(values []string) map[string]bool {
+	set := make(map[string]bool, len(values))
+	for _, value := range values {
+		set[value] = true
 	}
+	return set
+}
+
+func profileFor(name string) (useProfile, bool) {
+	name = normalizeUseType(name)
+	for _, profile := range useProfiles {
+		if profile.Name == name {
+			return profile, true
+		}
+	}
+	return useProfile{}, false
+}
+
+func profileForUses(names []string) useProfile {
+	names = normalizeUseTypes(names, "")
+	first, _ := profileFor(names[0])
+	combined := first
+	combined.Name = strings.Join(names, ", ")
+	for _, name := range names[1:] {
+		profile, ok := profileFor(name)
+		if !ok {
+			continue
+		}
+		for i := 0; i < 3; i++ {
+			combined.RTT[i] = math.Min(combined.RTT[i], profile.RTT[i])
+			combined.Loss[i] = math.Min(combined.Loss[i], profile.Loss[i])
+			combined.Jitter[i] = math.Min(combined.Jitter[i], profile.Jitter[i])
+		}
+		combined.ShowsJitter = combined.ShowsJitter || profile.ShowsJitter
+	}
+	return combined
+}
+
+func usesShowJitter(names []string) bool {
+	for _, name := range normalizeUseTypes(names, "") {
+		if profile, ok := profileFor(name); ok && profile.ShowsJitter {
+			return true
+		}
+	}
+	return false
 }
 
 func main() {
@@ -265,13 +329,14 @@ func main() {
 }
 
 func loadConfig() savedConfig {
-	cfg := savedConfig{PPS: 1, AggregationSeconds: 120, UseType: useTypes()[0]}
+	cfg := savedConfig{PPS: 1, AggregationSeconds: 120, UseTypes: defaultUseTypes()}
 	path := configPath()
 	if data, err := os.ReadFile(path); err == nil {
 		if err := json.Unmarshal(data, &cfg); err == nil {
 			cfg.PPS = clampInt(cfg.PPS, 1, 20)
 			cfg.AggregationSeconds = clampInt(cfg.AggregationSeconds, 3, 3600)
-			cfg.UseType = normalizeUseType(cfg.UseType)
+			cfg.UseTypes = normalizeUseTypes(cfg.UseTypes, cfg.UseType)
+			cfg.UseType = ""
 			cfg.Groups = normalizeSavedGroups(cfg.Groups)
 			if len(cfg.Groups) > 0 {
 				return cfg
@@ -285,7 +350,7 @@ func defaultConfig() savedConfig {
 	cfg := savedConfig{
 		PPS:                1,
 		AggregationSeconds: 120,
-		UseType:            useTypes()[0],
+		UseTypes:           defaultUseTypes(),
 		Groups: []savedGroup{
 			{Name: "Internet", Targets: "1.1.1.1, 1.1.1.2, 8.8.8.8, 8.8.4.4"},
 		},
@@ -412,7 +477,7 @@ func (a *app) run() error {
 							a.groupEditor(0),
 							a.groupEditor(1),
 							a.groupEditor(2),
-							Label{Text: "Internet use"},
+							Label{Text: "Internet uses"},
 							a.useTypeEditor(),
 							Composite{
 								Layout: VBox{MarginsZero: true, Spacing: 3},
@@ -453,6 +518,7 @@ func (a *app) run() error {
 		return err
 	}
 	a.attachInputPersistence()
+	a.updateJitterChartVisibility()
 	a.MainWindow.Closing().Attach(func(canceled *bool, reason walk.CloseReason) {
 		a.saveInputs()
 		_ = a.appendPendingHistory(defaultHistoryPath())
@@ -490,16 +556,18 @@ func (a *app) lineEditor(label string, assignTo **walk.LineEdit, text string) Wi
 }
 
 func (a *app) useTypeEditor() Widget {
+	selected := useTypeSet(normalizeUseTypes(a.settings.UseTypes, a.settings.UseType))
+	children := make([]Widget, 0, len(useProfiles))
+	for i, profile := range useProfiles {
+		children = append(children, CheckBox{
+			AssignTo: &a.useChecks[i],
+			Text:     profile.Name,
+			Checked:  selected[profile.Name],
+		})
+	}
 	return Composite{
-		Layout: VBox{MarginsZero: true},
-		Children: []Widget{
-			ComboBox{
-				AssignTo:     &a.useType,
-				Model:        useTypes(),
-				CurrentIndex: useTypeIndex(a.settings.UseType),
-				MaxSize:      Size{120, 0},
-			},
-		},
+		Layout:   VBox{MarginsZero: true, Spacing: 1},
+		Children: children,
 	}
 }
 
@@ -566,7 +634,7 @@ func (a *app) targetGroups() []targetGroup {
 }
 
 func (a *app) saveCurrentConfig(groups []targetGroup, pps, aggSeconds int) {
-	cfg := savedConfig{PPS: pps, AggregationSeconds: aggSeconds, UseType: a.selectedUseType()}
+	cfg := savedConfig{PPS: pps, AggregationSeconds: aggSeconds, UseTypes: a.selectedUseTypes()}
 	for _, g := range groups {
 		cfg.Groups = append(cfg.Groups, savedGroup{Name: g.Name, Targets: strings.Join(g.Targets, ", ")})
 	}
@@ -594,16 +662,54 @@ func (a *app) attachInputPersistence() {
 			edit.TextChanged().Attach(a.saveInputs)
 		}
 	}
-	if a.useType != nil {
-		a.useType.CurrentIndexChanged().Attach(a.saveInputs)
+	for _, check := range a.useChecks {
+		if check != nil {
+			check.CheckedChanged().Attach(a.useTypesChanged)
+		}
 	}
 }
 
-func (a *app) selectedUseType() string {
-	if a.useType == nil || a.useType.CurrentIndex() < 0 {
-		return useTypes()[0]
+func (a *app) useTypesChanged() {
+	a.ensureUseSelection()
+	a.saveInputs()
+	a.updateJitterChartVisibility()
+	a.invalidateCharts()
+}
+
+func (a *app) ensureUseSelection() {
+	if len(a.selectedUseTypes()) > 0 {
+		return
 	}
-	return useTypes()[a.useType.CurrentIndex()]
+	if a.useChecks[0] != nil {
+		a.useChecks[0].SetChecked(true)
+	}
+}
+
+func (a *app) selectedUseTypes() []string {
+	if a.useChecks[0] == nil {
+		return normalizeUseTypes(a.settings.UseTypes, a.settings.UseType)
+	}
+	var selected []string
+	for i, profile := range useProfiles {
+		if a.useChecks[i] != nil && a.useChecks[i].Checked() {
+			selected = append(selected, profile.Name)
+		}
+	}
+	return selected
+}
+
+func (a *app) selectedProfile() useProfile {
+	return profileForUses(a.selectedUseTypes())
+}
+
+func (a *app) shouldShowJitterChart() bool {
+	return usesShowJitter(a.selectedUseTypes())
+}
+
+func (a *app) updateJitterChartVisibility() {
+	if a.jitterChart != nil {
+		a.jitterChart.SetVisible(a.shouldShowJitterChart())
+	}
 }
 
 func groupSummary(groups []targetGroup) string {
@@ -991,6 +1097,9 @@ func (a *app) maxAggregatePoints() int {
 		if chart == nil {
 			continue
 		}
+		if chart == a.jitterChart && !a.shouldShowJitterChart() {
+			continue
+		}
 		width = max(width, plotBounds(chart.ClientBoundsPixels()).Width)
 	}
 	if width <= 0 {
@@ -1004,7 +1113,7 @@ func (a *app) currentConfig() savedConfig {
 		Groups:             currentSavedGroups(a.targetGroups()),
 		PPS:                clampInt(parseInt(a.pps.Text(), 1), 1, 20),
 		AggregationSeconds: clampInt(parseInt(a.agg.Text(), 120), 3, 3600),
-		UseType:            a.selectedUseType(),
+		UseTypes:           a.selectedUseTypes(),
 	}
 }
 
@@ -1019,7 +1128,8 @@ func currentSavedGroups(groups []targetGroup) []savedGroup {
 func (a *app) applyConfig(cfg savedConfig) {
 	cfg.PPS = clampInt(cfg.PPS, 1, 20)
 	cfg.AggregationSeconds = clampInt(cfg.AggregationSeconds, 3, 3600)
-	cfg.UseType = normalizeUseType(cfg.UseType)
+	cfg.UseTypes = normalizeUseTypes(cfg.UseTypes, cfg.UseType)
+	cfg.UseType = ""
 	cfg.Groups = normalizeSavedGroups(cfg.Groups)
 	for i := 0; i < 3; i++ {
 		name, targets := "", ""
@@ -1032,8 +1142,16 @@ func (a *app) applyConfig(cfg savedConfig) {
 	}
 	a.pps.SetText(strconv.Itoa(cfg.PPS))
 	a.agg.SetText(strconv.Itoa(cfg.AggregationSeconds))
-	a.useType.SetCurrentIndex(useTypeIndex(cfg.UseType))
+	selected := useTypeSet(cfg.UseTypes)
+	for i, profile := range useProfiles {
+		if a.useChecks[i] != nil {
+			a.useChecks[i].SetChecked(selected[profile.Name])
+		}
+	}
+	a.ensureUseSelection()
 	a.settings = cfg
+	a.updateJitterChartVisibility()
+	a.invalidateCharts()
 	saveConfig(cfg)
 }
 
@@ -1059,18 +1177,25 @@ func (a *app) updateCurrentLabel() {
 
 func (a *app) invalidateCharts() {
 	a.updateAdaptiveChartHeights()
-	a.rttChart.Invalidate()
-	a.p95Chart.Invalidate()
-	a.lossChart.Invalidate()
-	a.jitterChart.Invalidate()
+	for _, chart := range []*walk.CustomWidget{a.rttChart, a.p95Chart, a.lossChart, a.jitterChart} {
+		if chart != nil && chart.Visible() {
+			chart.Invalidate()
+		}
+	}
 }
 
 func (a *app) updateAdaptiveChartHeights() {
 	if a.rttChart == nil || a.p95Chart == nil || a.lossChart == nil || a.jitterChart == nil {
 		return
 	}
-	jitterPoints, _ := a.jitterPoints()
-	heights := redistributedChartHeights(adaptiveLossHeight(a.lossPoints()), adaptiveJitterHeight(jitterPoints))
+	showJitter := a.shouldShowJitterChart()
+	a.jitterChart.SetVisible(showJitter)
+	jitterHeight := 0
+	if showJitter {
+		jitterPoints, _ := a.jitterPoints()
+		jitterHeight = adaptiveJitterHeight(jitterPoints)
+	}
+	heights := redistributedChartHeights(adaptiveLossHeight(a.lossPoints()), jitterHeight, showJitter)
 	a.setChartHeight(a.rttChart, &a.rttChartHeight, heights[0])
 	a.setChartHeight(a.p95Chart, &a.p95ChartHeight, heights[1])
 	a.setChartHeight(a.lossChart, &a.lossChartHeight, heights[2])
@@ -1078,12 +1203,17 @@ func (a *app) updateAdaptiveChartHeights() {
 }
 
 func (a *app) setChartHeight(chart *walk.CustomWidget, current *int, height int) {
-	if height <= 0 || *current == height {
+	if height < 0 || *current == height {
 		return
 	}
 	*current = height
-	combinedHeight := combinedChartHeight(height)
-	_ = chart.SetMinMaxSize(walk.Size{Width: 0, Height: combinedHeight}, walk.Size{Width: 1 << 20, Height: 1 << 20})
+	combinedHeight := 0
+	maxHeight := 0
+	if height > 0 {
+		combinedHeight = combinedChartHeight(height)
+		maxHeight = 1 << 20
+	}
+	_ = chart.SetMinMaxSize(walk.Size{Width: 0, Height: combinedHeight}, walk.Size{Width: 1 << 20, Height: maxHeight})
 	if parent := chart.Parent(); parent != nil {
 		if layout := parent.Layout(); layout != nil {
 			if stretchLayout, ok := layout.(interface {
@@ -1099,16 +1229,25 @@ func combinedChartHeight(chartHeight int) int {
 	return chartHeaderHeight + headerChartGap + chartHeight
 }
 
-func redistributedChartHeights(lossHeight, jitterHeight int) [4]int {
+func redistributedChartHeights(lossHeight, jitterHeight int, includeJitter bool) [4]int {
 	base := [4]int{rttChartHeight, aggregateChartHeight, aggregateChartHeight, aggregateChartHeight}
-	heights := [4]int{base[0], base[1], clampInt(lossHeight, 1, base[2]), clampInt(jitterHeight, 1, base[3])}
-	saved := (base[2] - heights[2]) + (base[3] - heights[3])
+	heights := [4]int{base[0], base[1], clampInt(lossHeight, 1, base[2]), 0}
+	if includeJitter {
+		heights[3] = clampInt(jitterHeight, 1, base[3])
+	}
+	saved := 0
+	for i := range heights {
+		saved += base[i] - heights[i]
+	}
 	if saved <= 0 {
 		return heights
 	}
 
 	receiverWeight := 0
 	for i := range heights {
+		if i == 3 && !includeJitter {
+			continue
+		}
 		if heights[i] == base[i] {
 			receiverWeight += base[i]
 		}
@@ -1120,6 +1259,9 @@ func redistributedChartHeights(lossHeight, jitterHeight int) [4]int {
 	remaining := saved
 	lastReceiver := -1
 	for i := range heights {
+		if i == 3 && !includeJitter {
+			continue
+		}
 		if heights[i] != base[i] {
 			continue
 		}
@@ -1150,7 +1292,7 @@ func (a *app) rttPoints() ([]chartPoint, time.Time, float64) {
 	}
 	points := make([]chartPoint, 0, len(a.samples))
 	lossWindows := map[int][]bool{}
-	profile := profileFor(a.selectedUseType())
+	profile := a.selectedProfile()
 	for _, s := range a.samples {
 		if s.at.Before(now.Add(-120 * time.Second)) {
 			continue
@@ -1190,7 +1332,7 @@ func (a *app) paintRTT(canvas *walk.Canvas, bounds walk.Rectangle) error {
 
 func (a *app) p95Points() ([]chartPoint, float64) {
 	points := make([]chartPoint, 0, len(a.aggregates))
-	profile := profileFor(a.selectedUseType())
+	profile := a.selectedProfile()
 	for _, p := range a.aggregates {
 		points = append(points, chartPoint{at: p.at, value: p.p95, groupIndex: p.groupIndex, groupName: p.groupName, color: p.color, severity: thresholdSeverity(p.p95, profile.RTT)})
 	}
@@ -1209,7 +1351,7 @@ func (a *app) paintP95(canvas *walk.Canvas, bounds walk.Rectangle) error {
 
 func (a *app) lossPoints() []chartPoint {
 	points := make([]chartPoint, 0, len(a.aggregates))
-	profile := profileFor(a.selectedUseType())
+	profile := a.selectedProfile()
 	for _, p := range a.aggregates {
 		points = append(points, chartPoint{at: p.at, value: p.loss, groupIndex: p.groupIndex, groupName: p.groupName, color: p.color, severity: thresholdSeverity(p.loss, profile.Loss)})
 	}
@@ -1227,7 +1369,7 @@ func (a *app) paintLoss(canvas *walk.Canvas, bounds walk.Rectangle) error {
 
 func (a *app) jitterPoints() ([]chartPoint, float64) {
 	points := make([]chartPoint, 0, len(a.aggregates))
-	profile := profileFor(a.selectedUseType())
+	profile := a.selectedProfile()
 	for _, p := range a.aggregates {
 		points = append(points, chartPoint{at: p.at, value: p.jitterP95, groupIndex: p.groupIndex, groupName: p.groupName, color: p.color, severity: thresholdSeverity(p.jitterP95, profile.Jitter)})
 	}
