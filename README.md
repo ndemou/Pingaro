@@ -4,23 +4,7 @@ Long term network quality monitor
 
 Pingaro is a native Windows desktop app for watching connection quality over time. It visualizes response time, packet loss, and jitter in real time and across longer aggregate windows.
 
-## Build
-
-```powershell
-go generate ./...
-go build -trimpath -ldflags="-H=windowsgui" -o pingaro.exe .
-```
-
-The `-H=windowsgui` linker flag is required. Without it, Windows starts the app through a console subsystem and opens a terminal window that must remain open.
-`go generate ./...` refreshes `rsrc.syso` from `pingaro.exe.manifest` and `assets/pingaro.ico`.
-
-## Run
-
-```powershell
-.\pingaro.exe
-```
-
-Pingaro stores settings and saved history under `%AppData%\Pingaro`.
+<img width="1094" height="926" alt="image" src="https://github.com/user-attachments/assets/f5136898-dfc7-461a-9123-9e4aefb93e33" />
 
 ## Download From GitHub
 
@@ -66,3 +50,21 @@ When multiple uses are selected, Pingaro grades good, medium, and bad measuremen
 ## Arguments
 
 Pingaro is configured through the desktop UI. The saved config is reused on the next launch.
+
+## Build
+
+```powershell
+go generate ./...
+go build -trimpath -ldflags="-H=windowsgui" -o pingaro.exe .
+```
+
+The `-H=windowsgui` linker flag is required. Without it, Windows starts the app through a console subsystem and opens a terminal window that must remain open.
+`go generate ./...` refreshes `rsrc.syso` from `pingaro.exe.manifest` and `assets/pingaro.ico`.
+
+## Run
+
+```powershell
+.\pingaro.exe
+```
+
+Pingaro stores settings and saved history under `%AppData%\Pingaro`.
