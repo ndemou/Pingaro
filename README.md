@@ -1,4 +1,4 @@
-## Pingaro
+<img width="1672" height="941" alt="ChatGPT Image 6 Ιουλ 2026, 09_12_18 μ μ" src="https://github.com/user-attachments/assets/8c5ee8f6-6f8c-48d1-a6e8-e45a47961da0" />## Pingaro
 
 Long term network quality monitor
 
@@ -36,6 +36,8 @@ When checking Internet quality, Pingaro can ping multiple well-known hosts in pa
 By default Pingaro selects `email & browsing`, `audio calls`, `video calls`, and `online gaming`. It leaves `remote desktop` and `Superhuman Gaming` unchecked.
 
 When multiple uses are selected, Pingaro grades good, medium, and bad measurements using the strictest threshold from the selected uses. The jitter graph is shown only when `audio calls` or `video calls` is selected.
+
+<img width="830" height="286" alt="image" src="https://github.com/user-attachments/assets/f4de817c-7d44-47bd-afbe-6377719ce7fb" />
 
 ## Metrics
 
