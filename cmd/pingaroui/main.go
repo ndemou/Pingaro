@@ -332,7 +332,7 @@ func configPath() string {
 	if err != nil || dir == "" {
 		dir = "."
 	}
-	return filepath.Join(dir, "GoPing", "gopingui.json")
+	return filepath.Join(dir, "Pingaro", "pingaroui.json")
 }
 
 func defaultHistoryPath() string {
@@ -340,7 +340,7 @@ func defaultHistoryPath() string {
 	if err != nil || dir == "" {
 		dir = "."
 	}
-	return filepath.Join(dir, "GoPing", "gopingui-history.json")
+	return filepath.Join(dir, "Pingaro", "pingaroui-history.json")
 }
 
 func defaultGateway() string {
@@ -395,7 +395,7 @@ func defaultGatewayUnix() string {
 func (a *app) run() error {
 	mw := MainWindow{
 		AssignTo: &a.MainWindow,
-		Title:    "GoPing",
+		Title:    "Pingaro - Long term network quality monitor",
 		MinSize:  Size{980, 650},
 		Size:     Size{1180, 760},
 		Layout:   VBox{MarginsZero: true},
@@ -512,7 +512,7 @@ func (a *app) start() {
 
 	groups := a.targetGroups()
 	if len(groups) == 0 {
-		walk.MsgBox(a.MainWindow, "GoPing", "Enter at least one target group.", walk.MsgBoxIconWarning)
+		walk.MsgBox(a.MainWindow, "Pingaro", "Enter at least one target group.", walk.MsgBoxIconWarning)
 		return
 	}
 
@@ -689,35 +689,35 @@ func (a *app) accept(ev sampleEvent) {
 
 func (a *app) saveHistoryDialog() {
 	dlg := new(walk.FileDialog)
-	dlg.Title = "Save GoPing History"
-	dlg.Filter = "GoPing History (*.json)|*.json|All Files (*.*)|*.*"
+	dlg.Title = "Save Pingaro History"
+	dlg.Filter = "Pingaro History (*.json)|*.json|All Files (*.*)|*.*"
 	dlg.FilePath = defaultHistoryPath()
 	if ok, err := dlg.ShowSave(a.MainWindow); err != nil {
-		walk.MsgBox(a.MainWindow, "GoPing", err.Error(), walk.MsgBoxIconError)
+		walk.MsgBox(a.MainWindow, "Pingaro", err.Error(), walk.MsgBoxIconError)
 		return
 	} else if !ok {
 		return
 	}
 	a.saveInputs()
 	if err := a.saveHistory(dlg.FilePath); err != nil {
-		walk.MsgBox(a.MainWindow, "GoPing", err.Error(), walk.MsgBoxIconError)
+		walk.MsgBox(a.MainWindow, "Pingaro", err.Error(), walk.MsgBoxIconError)
 		return
 	}
 }
 
 func (a *app) loadHistoryDialog() {
 	dlg := new(walk.FileDialog)
-	dlg.Title = "Load GoPing History"
-	dlg.Filter = "GoPing History (*.json)|*.json|All Files (*.*)|*.*"
+	dlg.Title = "Load Pingaro History"
+	dlg.Filter = "Pingaro History (*.json)|*.json|All Files (*.*)|*.*"
 	dlg.FilePath = defaultHistoryPath()
 	if ok, err := dlg.ShowOpen(a.MainWindow); err != nil {
-		walk.MsgBox(a.MainWindow, "GoPing", err.Error(), walk.MsgBoxIconError)
+		walk.MsgBox(a.MainWindow, "Pingaro", err.Error(), walk.MsgBoxIconError)
 		return
 	} else if !ok {
 		return
 	}
 	if err := a.loadHistory(dlg.FilePath); err != nil {
-		walk.MsgBox(a.MainWindow, "GoPing", err.Error(), walk.MsgBoxIconError)
+		walk.MsgBox(a.MainWindow, "Pingaro", err.Error(), walk.MsgBoxIconError)
 	}
 }
 

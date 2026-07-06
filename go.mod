@@ -1,4 +1,4 @@
-module goping
+module pingaro
 
 go 1.24
 

@@ -1,30 +1,36 @@
 ## What is it?
 
-GoPing is a graphical version of ping designed for long-term monitoring. It visualizes your connection either to another host or to the Internet. It offers both second by second real-time graphs and minute by minute statistics for response time, packet loss, and jitter. When evaluating Internet connection quality, it runs multiple pings in parallel for reliable assessment. It is written in Go, and although it is graphical it still runs on your terminal.
+**Pingaro**
+Long term network quality monitor
+
+Pingaro visualizes your connection either to another host or to the Internet. It offers both second by second real-time graphs and minute by minute statistics for response time, packet loss, and jitter. When evaluating Internet connection quality, it runs multiple pings in parallel for reliable assessment. It is written in Go, with a terminal version and a native Windows graphical version.
 
 ## Build
 
-    go build -o goping.exe .
-    go build -ldflags="-H=windowsgui" -o gopingui.exe ./cmd/gopingui
+    go build -o pingaro.exe .
+    go build -ldflags="-H=windowsgui" -o pingaroui.exe ./cmd/pingaroui
+
+Build `pingaroui.exe` with `-ldflags="-H=windowsgui"` so Windows starts it as
+a graphical app without opening a terminal window that must remain open.
 
 ## Run
 
     # Test your internet connection:
-    .\goping.exe
+    .\pingaro.exe
 
     # Test the connection to a specific host:
-    .\goping.exe 10.1.1.1
+    .\pingaro.exe 10.1.1.1
 
     # Test the connection to up to 4 specific hosts as one aggregate:
-    .\goping.exe 10.1.1.1 10.1.1.2 10.1.1.3 10.1.1.4
+    .\pingaro.exe 10.1.1.1 10.1.1.2 10.1.1.3 10.1.1.4
 
     # Test the connection to a specific host by pinging at 20 pings per second:
-    .\goping.exe -PingsPerSec 20 10.1.1.1
+    .\pingaro.exe -PingsPerSec 20 10.1.1.1
 
     # Launch the native Windows desktop dashboard:
-    .\gopingui.exe
+    .\pingaroui.exe
 
-The `gopingui` command is a standalone Windows desktop app. It does not run a
+The `pingaroui` command is a standalone Windows desktop app. It does not run a
 local web server and does not need a browser.
 
 ![image](https://github.com/ndemou/Out-PingStats/assets/4411400/63b33280-a1ba-4a08-8fe4-da0572c2f942)
@@ -33,11 +39,11 @@ local web server and does not need a browser.
 
 ### Test your internet connection:
 
-    .\goping.exe
+    .\pingaro.exe
     
 ### Test the connection to one or more specific hosts:
 
-    .\goping.exe $(read-host 'Enter host(s) to ping')
+    .\pingaro.exe $(read-host 'Enter host(s) to ping')
 
    * Notice the keyboard shortcut shown at the end of the graph titles. You can use these shortcuts to hide and show the graphs.
    * Hit Ctrl-S to toggle betweeen the two possible graph resolutions and keep whichever looks better. You will get *good enough* graphs without configuring anything but if you spent a few minutes you will get production quality graphs (details follow).
@@ -46,11 +52,11 @@ local web server and does not need a browser.
 
 #### You want detailed but also easy to grasp results.
 
-Looking at the raw output of ping for more than a few seconds is tiring. A quick glance at the screen of GoPing gives you a lot more information that is also easy to comprehend (packet loss, max RTT times, jitter).
+Looking at the raw output of ping for more than a few seconds is tiring. A quick glance at the screen of Pingaro gives you a lot more information that is also easy to comprehend (packet loss, max RTT times, jitter).
 
 #### You want a high certainty evaluation of your connection to the Internet 
 
-To evaluate the uplink quality you can `ping google.com` or some other well known host. However, any host, even a robust one like google.com, may experience issues or throttle your pings. GoPing pings *four* well known hosts in parallel, so if you see packet loss or high response times, you can be pretty certain that the issue lies either on your infrastructure or your ISP.
+To evaluate the uplink quality you can `ping google.com` or some other well known host. However, any host, even a robust one like google.com, may experience issues or throttle your pings. Pingaro pings *four* well known hosts in parallel, so if you see packet loss or high response times, you can be pretty certain that the issue lies either on your infrastructure or your ISP.
 
 ```
         +---------+               }
@@ -58,7 +64,7 @@ To evaluate the uplink quality you can `ping google.com` or some other well know
         +---++----+               }
             ||                    }
    +--------''-------------+      }
-   | Your network WIFI/LAN |      }  if GoPing
+   | Your network WIFI/LAN |      }  if Pingaro
    +--------,,-------------+      }  shows a bad connection
             ||                    }--the problem is most
         +---''---+                }  likely somewhere 
@@ -82,36 +88,36 @@ To evaluate the uplink quality you can `ping google.com` or some other well know
 
 #### You want to visually evaluate the quality of a connection for minutes or hours 
 
-GoPing can nicely display several minutes or hours' worth of data in one screen, making it easy to assess the **long term quality** of a connection. It also saves its screen every 2 minutes in your `%TEMP%` folder so that you don't loose the results even if you accidentaly close its window. Check the saved screens with `ls $env:TEMP\ops*.screen` and view any of them with `cat ops.2023-05-14_15.34.46.screen`. Simple and helpful :-)
+Pingaro can nicely display several minutes or hours' worth of data in one screen, making it easy to assess the **long term network quality** of a connection. It also saves its screen every 2 minutes in your `%TEMP%` folder so that you don't loose the results even if you accidentaly close its window. Check the saved screens with `ls $env:TEMP\ops*.screen` and view any of them with `cat ops.2023-05-14_15.34.46.screen`. Simple and helpful :-)
 
-## Example of using GoPing to evaluate your Wi-Fi quality
+## Example of using Pingaro to evaluate your Wi-Fi quality
 
-Wondering how close to ethernet performance your Wi-Fi can give? Run GoPing, spend plenty of minutes with both and enjoy the results:
+Wondering how close to ethernet performance your Wi-Fi can give? Run Pingaro, spend plenty of minutes with both and enjoy the results:
 
 ![image](https://github.com/ndemou/Out-PingStats/assets/4411400/9122d688-351d-47f7-8c02-d1ada11e4c78)
 
 On the left terminal we are pinging our gateway. Initially via ethernet and then via Wi-Fi. 
 
-At the same time on the right terminal we've let GoPing evaluate our uplink.
+At the same time on the right terminal we've let Pingaro evaluate our uplink.
 
 Seeing the output it is obvious that your Wi-Fi isn't good for VoIP or gaming. 
 
 ### How to use
 
     # To test Internet quality 
-    goping
+    pingaro
     
     # To test network connection to 10.1.1.1
-    goping 10.1.1.1
+    pingaro 10.1.1.1
 
     # To test network connection to up to 4 hosts as one aggregate:
-    goping 10.1.1.1 10.1.1.2 10.1.1.3 10.1.1.4
+    pingaro 10.1.1.1 10.1.1.2 10.1.1.3 10.1.1.4
 
     # You can also pass multiple targets with -Target:
-    goping -Target "10.1.1.1,10.1.1.2"
+    pingaro -Target "10.1.1.1,10.1.1.2"
 
     # To test network connection to 10.1.1.1 by pinging at 20 batches per second:
-    goping -PingsPerSec 20 10.1.1.1
+    pingaro -PingsPerSec 20 10.1.1.1
 
     # In all cases you can add -HighResFont true and you MAY get preatier graphs
 
@@ -119,7 +125,7 @@ If you want to evaluate your connection to one to four specific hosts
 (e.g. when you want to test your ethernet/WIFI quality)
 you specify the hosts positionally or with `-Target` and maybe also set
 a higher ping rate (with `-PingsPerSec`). When multiple hosts are supplied,
-GoPing pings them in parallel and records one aggregate RTT per batch: the
+Pingaro pings them in parallel and records one aggregate RTT per batch: the
 minimum successful RTT, or a lost packet if none reply.
 
 ### Understanding the graphs
@@ -198,14 +204,14 @@ If you want to setup your terminal for high-res graphs, this is the TLDR guide:
 
 #### Periodic screen dump to a file
 
-Every time GoPing updates the slow graphs, it dumps the screen to a file
+Every time Pingaro updates the slow graphs, it dumps the screen to a file
 named  `ops.<START-TIME>.screen` inside your %TEMP%
 folder.  So if after closing the program you want to view its last output
 you only have to `cat` this file.
 
 #### Saved RTT measurements
 
-GoPing also records every RTT time measured to a text file named
+Pingaro also records every RTT time measured to a text file named
 `ops.<START-TIME>.pingrec` in your %TEMP% folder. The file has one line per 
 minute starting with the timestamp `hhmm:`. After the timestamp follows one
 character per measurement. The character is `[char]($RTT+34)`
