@@ -5,7 +5,7 @@ clear visualizations of response time, packet loss, and jitter. If you are not, 
 Internet connection is good enough, pick a usage profile, such as Audio Calls or Gaming, and let Pingaro highlight
 any quality issues it detects. You can leave it running in the background and review the results later.
 
-<img width="1094" height="926" alt="image" src="https://github.com/user-attachments/assets/f5136898-dfc7-461a-9123-9e4aefb93e33" />
+<img width="1211" height="948" alt="image" src="https://github.com/user-attachments/assets/1ab3a613-a6ea-463e-a2a6-641fc815b2ec" />
 
 ## Download From GitHub
 
