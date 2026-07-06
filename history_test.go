@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestParseHistoryRecordsMixedPrettyAndLineJSON(t *testing.T) {
 	data := []byte(`{
@@ -153,4 +156,151 @@ func TestNormalizeUseTypesRenamesLowLatencyGaming(t *testing.T) {
 	if len(got) != 1 || got[0] != "Superhuman Gaming" {
 		t.Fatalf("normalizeUseTypes(low latency gaming) = %v, want [Superhuman Gaming]", got)
 	}
+}
+
+func TestSummarizeConnectionIssuesGood(t *testing.T) {
+	got, severity := summarizeConnectionIssues(nil)
+	if got != "So far, the connection looks good." {
+		t.Fatalf("summary = %q", got)
+	}
+	if severity != 0 {
+		t.Fatalf("severity = %d, want 0", severity)
+	}
+}
+
+func TestSummarizeConnectionIssuesSingleIssue(t *testing.T) {
+	at := issueTestTime(12, 34)
+	got, severity := summarizeConnectionIssues([]connectionIssue{{at: at, severity: 1}})
+	want := "The connection has had a minor issue at 12:34."
+	if got != want {
+		t.Fatalf("summary = %q, want %q", got, want)
+	}
+	if severity != 1 {
+		t.Fatalf("severity = %d, want 1", severity)
+	}
+}
+
+func TestSummarizeConnectionIssuesSomeSameSeverity(t *testing.T) {
+	got, severity := summarizeConnectionIssues([]connectionIssue{
+		{at: issueTestTime(12, 10), severity: 2},
+		{at: issueTestTime(12, 15), severity: 2},
+	})
+	want := "The connection has had some noticeable issues (between 12:10-12:15)."
+	if got != want {
+		t.Fatalf("summary = %q, want %q", got, want)
+	}
+	if severity != 2 {
+		t.Fatalf("severity = %d, want 2", severity)
+	}
+}
+
+func TestSummarizeConnectionIssuesSeveralSameSeverity(t *testing.T) {
+	got, severity := summarizeConnectionIssues([]connectionIssue{
+		{at: issueTestTime(12, 10), severity: 3},
+		{at: issueTestTime(12, 11), severity: 3},
+		{at: issueTestTime(12, 13), severity: 3},
+		{at: issueTestTime(12, 15), severity: 3},
+	})
+	want := "The connection has had several serious issues (between 12:10-12:15)."
+	if got != want {
+		t.Fatalf("summary = %q, want %q", got, want)
+	}
+	if severity != 3 {
+		t.Fatalf("severity = %d, want 3", severity)
+	}
+}
+
+func TestSummarizeConnectionIssuesCombinesSeverities(t *testing.T) {
+	got, severity := summarizeConnectionIssues([]connectionIssue{
+		{at: issueTestTime(12, 34), severity: 1},
+		{at: issueTestTime(12, 18), severity: 2},
+		{at: issueTestTime(12, 20), severity: 2},
+		{at: issueTestTime(12, 10), severity: 3},
+		{at: issueTestTime(12, 11), severity: 3},
+		{at: issueTestTime(12, 13), severity: 3},
+		{at: issueTestTime(12, 15), severity: 3},
+	})
+	want := "The connection has had: a minor issue at 12:34, some noticeable issues (last at 12:20), several serious issues (between 12:10-12:15)."
+	if got != want {
+		t.Fatalf("summary = %q, want %q", got, want)
+	}
+	if severity != 3 {
+		t.Fatalf("severity = %d, want 3", severity)
+	}
+}
+
+func TestConnectionIssuesPreferAggregatesOverRealtime(t *testing.T) {
+	at := issueTestTime(12, 34)
+	a := &app{
+		settings: savedConfig{UseTypes: []string{"online gaming"}},
+		samples: []sampleEvent{
+			{at: at, rtt: 300, targetLabel: "Internet"},
+		},
+		aggregates: []aggregatePoint{
+			{at: at, p95: 20, loss: 0, jitterP95: 0},
+		},
+		historyViewEnd: at,
+	}
+	got, severity := summarizeConnectionIssues(a.connectionIssues())
+	if got != "So far, the connection looks good." {
+		t.Fatalf("summary = %q", got)
+	}
+	if severity != 0 {
+		t.Fatalf("severity = %d, want 0", severity)
+	}
+}
+
+func TestConnectionIssuesFallBackToRealtimeBeforeAggregates(t *testing.T) {
+	at := issueTestTime(12, 34)
+	a := &app{
+		settings: savedConfig{UseTypes: []string{"online gaming"}},
+		samples: []sampleEvent{
+			{at: at, rtt: 300, targetLabel: "Internet"},
+		},
+		historyViewEnd: at,
+	}
+	got, severity := summarizeConnectionIssues(a.connectionIssues())
+	want := "The connection has had a serious issue at 12:34."
+	if got != want {
+		t.Fatalf("summary = %q, want %q", got, want)
+	}
+	if severity != 3 {
+		t.Fatalf("severity = %d, want 3", severity)
+	}
+}
+
+func TestConnectionIssuesUseVisibleAggregateGraphs(t *testing.T) {
+	at := issueTestTime(12, 34)
+	hiddenJitter := &app{
+		settings: savedConfig{UseTypes: []string{"online gaming"}},
+		aggregates: []aggregatePoint{
+			{at: at, p95: 20, loss: 0, jitterP95: 500},
+		},
+	}
+	got, severity := summarizeConnectionIssues(hiddenJitter.connectionIssues())
+	if got != "So far, the connection looks good." {
+		t.Fatalf("hidden jitter summary = %q", got)
+	}
+	if severity != 0 {
+		t.Fatalf("hidden jitter severity = %d, want 0", severity)
+	}
+
+	visibleJitter := &app{
+		settings: savedConfig{UseTypes: []string{"audio calls"}},
+		aggregates: []aggregatePoint{
+			{at: at, p95: 20, loss: 0, jitterP95: 500},
+		},
+	}
+	got, severity = summarizeConnectionIssues(visibleJitter.connectionIssues())
+	want := "The connection has had a serious issue at 12:34."
+	if got != want {
+		t.Fatalf("visible jitter summary = %q, want %q", got, want)
+	}
+	if severity != 3 {
+		t.Fatalf("visible jitter severity = %d, want 3", severity)
+	}
+}
+
+func issueTestTime(hour, minute int) time.Time {
+	return time.Date(2026, time.July, 6, hour, minute, 0, 0, time.Local)
 }

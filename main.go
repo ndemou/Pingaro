@@ -141,6 +141,18 @@ type chartPoint struct {
 	severity   int
 }
 
+type connectionIssue struct {
+	at       time.Time
+	severity int
+}
+
+type connectionIssueBucket struct {
+	severity int
+	count    int
+	first    time.Time
+	last     time.Time
+}
+
 type lastItem struct {
 	Text  string
 	Color walk.Color
@@ -189,6 +201,8 @@ type app struct {
 	lossChart    *walk.CustomWidget
 	jitterChart  *walk.CustomWidget
 	currentLabel *walk.Label
+	summaryPanel *walk.Composite
+	summaryLabel *walk.TextLabel
 
 	cancel            context.CancelFunc
 	samples           []sampleEvent
@@ -206,6 +220,7 @@ type app struct {
 	p95ChartHeight    int
 	lossChartHeight   int
 	jitterChartHeight int
+	summarySeverity   int
 }
 
 var useProfiles = []useProfile{
@@ -496,6 +511,24 @@ func (a *app) run() error {
 								},
 							},
 							Label{AssignTo: &a.currentLabel, Text: "No samples yet"},
+							Composite{
+								AssignTo: &a.summaryPanel,
+								Layout:   VBox{Margins: Margins{Left: 6, Top: 4, Right: 6, Bottom: 4}},
+								Visible:  false,
+								Background: SolidColorBrush{
+									Color: summaryBackgroundColor(0),
+								},
+								Children: []Widget{
+									TextLabel{
+										AssignTo:      &a.summaryLabel,
+										Text:          "",
+										MinSize:       Size{150, 0},
+										Font:          Font{Family: "Segoe UI", PointSize: 9, Bold: true},
+										Background:    TransparentBrush{},
+										TextAlignment: AlignHNearVNear,
+									},
+								},
+							},
 							VSpacer{},
 						},
 					},
@@ -600,6 +633,7 @@ func (a *app) start() {
 	a.sessionPings = 0
 	a.lastHistorySave = time.Now()
 	a.setRunning(true)
+	a.updateCurrentLabel()
 	a.invalidateCharts()
 	go a.pingLoop(ctx, groups, pps, aggSeconds)
 }
@@ -673,6 +707,7 @@ func (a *app) useTypesChanged() {
 	a.ensureUseSelection()
 	a.saveInputs()
 	a.updateJitterChartVisibility()
+	a.updateCurrentLabel()
 	a.invalidateCharts()
 }
 
@@ -1162,6 +1197,7 @@ func (a *app) refreshMetricsFromLoadedHistory() {
 func (a *app) updateCurrentLabel() {
 	if a.sessionPings == 0 {
 		a.currentLabel.SetText("No samples yet")
+		a.setConnectionSummary("", 0, false)
 		return
 	}
 	end := time.Now()
@@ -1173,6 +1209,153 @@ func (a *app) updateCurrentLabel() {
 		start = end
 	}
 	a.currentLabel.SetText(fmt.Sprintf("%d pings, %s", a.sessionPings, formatDuration(end.Sub(start))))
+	text, severity := summarizeConnectionIssues(a.connectionIssues())
+	a.setConnectionSummary(text, severity, true)
+}
+
+func (a *app) setConnectionSummary(text string, severity int, visible bool) {
+	if a.summaryPanel == nil || a.summaryLabel == nil {
+		return
+	}
+	_ = a.summaryLabel.SetText(text)
+	if severity != a.summarySeverity {
+		brush, err := walk.NewSolidColorBrush(summaryBackgroundColor(severity))
+		if err == nil {
+			a.summaryPanel.SetBackground(brush)
+			a.summarySeverity = severity
+		}
+	}
+	a.summaryPanel.SetVisible(visible)
+	if parent := a.summaryPanel.Parent(); parent != nil {
+		parent.RequestLayout()
+	}
+}
+
+func (a *app) connectionIssues() []connectionIssue {
+	if len(a.aggregates) == 0 {
+		return a.realtimeConnectionIssues()
+	}
+	return a.aggregateConnectionIssues()
+}
+
+func (a *app) aggregateConnectionIssues() []connectionIssue {
+	profile := a.selectedProfile()
+	includeJitter := a.shouldShowJitterChart()
+	issues := make([]connectionIssue, 0, len(a.aggregates))
+	for _, p := range a.aggregates {
+		severity := thresholdSeverity(p.p95, profile.RTT)
+		severity = max(severity, thresholdSeverity(p.loss, profile.Loss))
+		if includeJitter {
+			severity = max(severity, thresholdSeverity(p.jitterP95, profile.Jitter))
+		}
+		if severity > 0 {
+			issues = append(issues, connectionIssue{at: p.at, severity: severity})
+		}
+	}
+	return issues
+}
+
+func (a *app) realtimeConnectionIssues() []connectionIssue {
+	points, _, _ := a.rttPoints()
+	issues := make([]connectionIssue, 0, len(points))
+	for _, p := range points {
+		if p.severity > 0 {
+			issues = append(issues, connectionIssue{at: p.at, severity: p.severity})
+		}
+	}
+	return issues
+}
+
+func summarizeConnectionIssues(issues []connectionIssue) (string, int) {
+	if len(issues) == 0 {
+		return "So far, the connection looks good.", 0
+	}
+
+	buckets := map[int]*connectionIssueBucket{}
+	maxSeverity := 0
+	for _, issue := range issues {
+		if issue.severity <= 0 {
+			continue
+		}
+		severity := clampInt(issue.severity, 1, 3)
+		bucket := buckets[severity]
+		if bucket == nil {
+			bucket = &connectionIssueBucket{severity: severity, first: issue.at, last: issue.at}
+			buckets[severity] = bucket
+		}
+		bucket.count++
+		if issue.at.Before(bucket.first) {
+			bucket.first = issue.at
+		}
+		if issue.at.After(bucket.last) {
+			bucket.last = issue.at
+		}
+		maxSeverity = max(maxSeverity, severity)
+	}
+	if len(buckets) == 0 {
+		return "So far, the connection looks good.", 0
+	}
+
+	severities := make([]int, 0, len(buckets))
+	for severity := range buckets {
+		severities = append(severities, severity)
+	}
+	sort.Ints(severities)
+
+	parts := make([]string, 0, len(severities))
+	combined := len(severities) > 1
+	for _, severity := range severities {
+		parts = append(parts, issueBucketPhrase(*buckets[severity], combined))
+	}
+	if combined {
+		return "The connection has had: " + strings.Join(parts, ", ") + ".", maxSeverity
+	}
+	return "The connection has had " + parts[0] + ".", maxSeverity
+}
+
+func issueBucketPhrase(bucket connectionIssueBucket, combined bool) string {
+	severity := issueSeverityName(bucket.severity)
+	if bucket.count == 1 {
+		return fmt.Sprintf("a %s issue at %s", severity, formatIssueTime(bucket.last))
+	}
+
+	countWord := "some"
+	if bucket.count >= 4 {
+		countWord = "several"
+	}
+	if sameIssueMinute(bucket.first, bucket.last) {
+		return fmt.Sprintf("%s %s issues (at %s)", countWord, severity, formatIssueTime(bucket.last))
+	}
+	if combined && bucket.count < 4 {
+		return fmt.Sprintf("%s %s issues (last at %s)", countWord, severity, formatIssueTime(bucket.last))
+	}
+	return fmt.Sprintf("%s %s issues (between %s-%s)", countWord, severity, formatIssueTime(bucket.first), formatIssueTime(bucket.last))
+}
+
+func issueSeverityName(severity int) string {
+	switch severity {
+	case 1:
+		return "minor"
+	case 2:
+		return "noticeable"
+	default:
+		return "serious"
+	}
+}
+
+func sameIssueMinute(a, b time.Time) bool {
+	return a.Format("15:04") == b.Format("15:04")
+}
+
+func formatIssueTime(t time.Time) string {
+	return t.Format("15:04")
+}
+
+func summaryBackgroundColor(severity int) walk.Color {
+	if severity == 0 {
+		return walk.RGB(245, 248, 250)
+	}
+	return severityColor(severity)
 }
 
 func (a *app) invalidateCharts() {
