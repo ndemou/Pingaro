@@ -43,12 +43,12 @@ PS C:\Users\user> ping -t -w 100 diamc.kr | %{echo "$((get-date -UFormat %s)) $_
 
 ## TODO: Consider Windows ICMP API for faster loss reporting
 
-The Windows GUI currently shells out to `ping.exe`. During serious packet loss,
+Pingaro currently shells out to `ping.exe`. During serious packet loss,
 `ping.exe` appears to take more than one second to report a lost packet,
 regardless of the timeout arguments used. This can make the realtime graph lag
 behind the actual loss event.
 
-Consider replacing the Windows GUI ping path with the Windows ICMP API
+Consider replacing the Pingaro ping path with the Windows ICMP API
 (`IcmpCreateFile` / `IcmpSendEcho`, and the IPv6 equivalents if needed). That
 should let us report packet loss at the intended one-second cadence without
 waiting on `ping.exe` process behavior or localized text output.
