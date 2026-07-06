@@ -30,7 +30,10 @@ import (
 
 const lostRTT = 9999
 
-const defaultInternetTargets = "1.1.1.1, 1.1.1.2, 8.8.8.8, 8.8.4.4"
+const (
+	appIconResourceID      = 2
+	defaultInternetTargets = "1.1.1.1, 1.1.1.2, 8.8.8.8, 8.8.4.4"
+)
 
 const (
 	rttChartHeight       = 150
@@ -484,6 +487,7 @@ func (a *app) run() error {
 	mw := MainWindow{
 		AssignTo: &a.MainWindow,
 		Title:    "Pingaro - Long term network quality monitor",
+		Icon:     appIconResourceID,
 		MinSize:  Size{980, 650},
 		Size:     Size{1180, 760},
 		Layout:   VBox{MarginsZero: true},

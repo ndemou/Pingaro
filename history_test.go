@@ -3,6 +3,8 @@ package main
 import (
 	"testing"
 	"time"
+
+	"github.com/lxn/walk"
 )
 
 func TestParseHistoryRecordsMixedPrettyAndLineJSON(t *testing.T) {
@@ -31,6 +33,14 @@ func TestParseHistoryRecordsMixedPrettyAndLineJSON(t *testing.T) {
 	if len(records) != 2 {
 		t.Fatalf("len(records) = %d, want 2", len(records))
 	}
+}
+
+func TestWindowIconResourceExists(t *testing.T) {
+	icon, err := walk.NewIconFromResourceId(appIconResourceID)
+	if err != nil {
+		t.Fatalf("NewIconFromResourceId(%d) error = %v", appIconResourceID, err)
+	}
+	icon.Dispose()
 }
 
 func TestDefaultGroupsPutGatewayBeforeInternet(t *testing.T) {
