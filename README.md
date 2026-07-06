@@ -7,10 +7,12 @@ Pingaro is a native Windows desktop app for watching connection quality over tim
 ## Build
 
 ```powershell
+go generate ./...
 go build -trimpath -ldflags="-H=windowsgui" -o pingaro.exe .
 ```
 
 The `-H=windowsgui` linker flag is required. Without it, Windows starts the app through a console subsystem and opens a terminal window that must remain open.
+`go generate ./...` refreshes `rsrc.syso` from `pingaro.exe.manifest` and `assets/pingaro.ico`.
 
 ## Run
 

@@ -1,5 +1,7 @@
 package main
 
+//go:generate go run github.com/akavel/rsrc@v0.10.2 -manifest pingaro.exe.manifest -ico assets/pingaro.ico -o rsrc.syso
+
 import (
 	"bytes"
 	"context"
@@ -1353,7 +1355,7 @@ func formatIssueTime(t time.Time) string {
 
 func summaryBackgroundColor(severity int) walk.Color {
 	if severity == 0 {
-		return walk.RGB(245, 248, 250)
+		return walk.RGB(57, 231, 95)
 	}
 	return severityColor(severity)
 }
