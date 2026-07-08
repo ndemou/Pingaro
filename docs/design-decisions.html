@@ -1,0 +1,752 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pingaro Design Decisions</title>
+  <style>
+    :root {
+      --ink: #151922;
+      --muted: #5d6572;
+      --line: #d9dde5;
+      --panel: #ffffff;
+      --page: #f4f6f9;
+      --accent: #850087;
+      --accent-2: #287c27;
+      --good: #39e75f;
+      --minor: #c1c1c8;
+      --noticeable: #fcea90;
+      --serious: #f8aeaf;
+      --group-1: #000000;
+      --group-2: #850087;
+      --group-3: #287c27;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--page);
+      font-family: "Segoe UI", Arial, sans-serif;
+      line-height: 1.5;
+    }
+
+    header {
+      background: #0f1218;
+      color: #fff;
+      padding: 42px 28px 34px;
+      border-bottom: 6px solid var(--accent);
+    }
+
+    header .wrap,
+    main {
+      max-width: 1160px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: 40px;
+      line-height: 1.08;
+      letter-spacing: 0;
+    }
+
+    header p {
+      margin: 0;
+      max-width: 850px;
+      color: #d7dce6;
+      font-size: 17px;
+    }
+
+    nav {
+      background: #fff;
+      border-bottom: 1px solid var(--line);
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+
+    nav .wrap {
+      max-width: 1160px;
+      margin: 0 auto;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 10px 20px;
+    }
+
+    nav a {
+      color: #202633;
+      text-decoration: none;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 13px;
+      background: #fafbfc;
+    }
+
+    main {
+      padding: 26px 20px 50px;
+    }
+
+    section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      margin: 0 0 18px;
+      padding: 22px;
+      box-shadow: 0 1px 2px rgba(18, 24, 38, 0.04);
+    }
+
+    h2 {
+      margin: 0 0 14px;
+      font-size: 24px;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 18px 0 8px;
+      font-size: 17px;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 0 0 12px;
+    }
+
+    code {
+      background: #eef1f5;
+      border: 1px solid #e1e5ec;
+      border-radius: 4px;
+      padding: 1px 4px;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 0.94em;
+    }
+
+    .lede {
+      font-size: 18px;
+      color: #303746;
+      max-width: 930px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 14px;
+    }
+
+    .decision {
+      border: 1px solid var(--line);
+      border-left: 5px solid var(--accent);
+      border-radius: 7px;
+      padding: 14px;
+      background: #fbfcfe;
+    }
+
+    .decision h3 {
+      margin-top: 0;
+    }
+
+    .decision p:last-child,
+    li:last-child {
+      margin-bottom: 0;
+    }
+
+    .status {
+      display: inline-block;
+      background: #e7f7ec;
+      color: #145326;
+      border: 1px solid #bfe8c9;
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 14px;
+    }
+
+    th,
+    td {
+      border: 1px solid var(--line);
+      padding: 9px 10px;
+      vertical-align: top;
+      text-align: left;
+    }
+
+    th {
+      background: #eef1f6;
+      font-weight: 700;
+    }
+
+    tr:nth-child(even) td {
+      background: #fbfcfe;
+    }
+
+    ul {
+      margin: 0 0 12px 20px;
+      padding: 0;
+    }
+
+    .swatches {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .swatch {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 10px;
+      background: #fff;
+    }
+
+    .chip {
+      width: 42px;
+      height: 30px;
+      border: 1px solid rgba(0, 0, 0, 0.25);
+      border-radius: 5px;
+      flex: 0 0 auto;
+    }
+
+    .chip.line {
+      height: 8px;
+      border-radius: 99px;
+    }
+
+    .mockup {
+      border: 1px solid #c8ced8;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fff;
+      margin-top: 12px;
+    }
+
+    .mockup-top {
+      background: #171b23;
+      color: #fff;
+      padding: 8px 12px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .mockup-body {
+      display: grid;
+      grid-template-columns: 230px 1fr;
+      min-height: 250px;
+    }
+
+    .mockup-side {
+      border-right: 1px solid var(--line);
+      padding: 12px;
+      background: #f7f8fb;
+    }
+
+    .mockup-chart {
+      padding: 12px;
+    }
+
+    .control {
+      height: 22px;
+      margin: 0 0 7px;
+      border: 1px solid #ccd2dc;
+      background: #fff;
+      border-radius: 4px;
+    }
+
+    .chart {
+      height: 58px;
+      border: 1px solid #d3d8e2;
+      border-radius: 4px;
+      margin-bottom: 9px;
+      background:
+        linear-gradient(90deg, transparent 0 18%, var(--minor) 18% 20%, transparent 20% 50%, var(--noticeable) 50% 53%, transparent 53% 76%, var(--serious) 76% 80%, transparent 80%),
+        repeating-linear-gradient(0deg, #fff, #fff 18px, #eef1f5 19px);
+      position: relative;
+    }
+
+    .chart::after {
+      content: "";
+      position: absolute;
+      left: 14px;
+      right: 14px;
+      top: 29px;
+      height: 0;
+      border-top: 3px solid var(--group-2);
+      transform: rotate(-3deg);
+    }
+
+    .summary-good,
+    .summary-bad {
+      font-weight: 700;
+      border-radius: 6px;
+      padding: 8px;
+      margin-top: 8px;
+    }
+
+    .summary-good {
+      background: var(--good);
+    }
+
+    .summary-bad {
+      background: var(--serious);
+    }
+
+    .timeline {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .timeline div {
+      padding: 10px;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .timeline div:nth-child(4n + 1),
+    .timeline div:nth-child(4n + 2) {
+      background: #fbfcfe;
+    }
+
+    .timeline div:nth-last-child(-n + 2) {
+      border-bottom: 0;
+    }
+
+    .note {
+      border-left: 5px solid var(--accent-2);
+      background: #f0f8f1;
+      padding: 12px 14px;
+      border-radius: 6px;
+      margin-top: 10px;
+    }
+
+    @media (max-width: 760px) {
+      h1 {
+        font-size: 32px;
+      }
+
+      .mockup-body {
+        grid-template-columns: 1fr;
+      }
+
+      .mockup-side {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .timeline {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1>Pingaro Design Decisions</h1>
+      <p>Decision log for Pingaro, a Windows app for long term network quality monitoring. This document captures the product, UX, measurement, build, and release choices made during development.</p>
+    </div>
+  </header>
+
+  <nav>
+    <div class="wrap">
+      <a href="#purpose">Purpose</a>
+      <a href="#identity">Identity</a>
+      <a href="#scope">Scope</a>
+      <a href="#measurement">Measurement</a>
+      <a href="#profiles">Use Profiles</a>
+      <a href="#summary">Overall Status</a>
+      <a href="#visuals">Visual Design</a>
+      <a href="#defaults">Defaults</a>
+      <a href="#build">Build</a>
+      <a href="#history">History</a>
+      <a href="#timeline">Timeline</a>
+    </div>
+  </nav>
+
+  <main>
+    <section id="purpose">
+      <h2>Product Purpose</h2>
+      <p class="lede">Pingaro exists to answer a practical question: is the connection good enough for what the user is trying to do, and when did it stop being good enough?</p>
+      <div class="grid">
+        <div class="decision">
+          <h3>Serve experts and non-experts</h3>
+          <p><span class="status">Accepted</span></p>
+          <p>Network experts get direct visualizations of response time, packet loss, p95 latency, and jitter. Non-experts can choose one or more use profiles and let Pingaro classify issues for them.</p>
+        </div>
+        <div class="decision">
+          <h3>Focus on quality over time</h3>
+          <p><span class="status">Accepted</span></p>
+          <p>The tool is not a one-shot speed test. It is meant to run while the user works, plays, or calls, then summarize what happened over time.</p>
+        </div>
+        <div class="decision">
+          <h3>Plain language first</h3>
+          <p><span class="status">Accepted</span></p>
+          <p>The UI should not force users to interpret every chart. The overall status label uses direct sentences such as "So far, the connection looks good."</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="identity">
+      <h2>Identity</h2>
+      <table>
+        <tr>
+          <th>Decision</th>
+          <th>Outcome</th>
+          <th>Reason</th>
+        </tr>
+        <tr>
+          <td>Name</td>
+          <td><strong>Pingaro</strong></td>
+          <td>Short, memorable, and directly connected to ping/network monitoring without using the taken name "goping".</td>
+        </tr>
+        <tr>
+          <td>Tagline</td>
+          <td><strong>Long term network quality monitor</strong></td>
+          <td>States the product category plainly and distinguishes it from quick speed tests.</td>
+        </tr>
+        <tr>
+          <td>Executable</td>
+          <td><code>pingaro.exe</code></td>
+          <td>One product, one app, one executable.</td>
+        </tr>
+        <tr>
+          <td>Icon</td>
+          <td><code>assets/pingaro.ico</code> embedded through <code>rsrc.syso</code></td>
+          <td>The exe file icon and the top-left GUI window icon should both show the Pingaro icon.</td>
+        </tr>
+      </table>
+    </section>
+
+    <section id="scope">
+      <h2>Application Scope</h2>
+      <div class="grid">
+        <div class="decision">
+          <h3>GUI only</h3>
+          <p><span class="status">Accepted</span></p>
+          <p>The TUI version was removed. Pingaro now has only the graphical Windows application.</p>
+        </div>
+        <div class="decision">
+          <h3>No terminal dependency</h3>
+          <p><span class="status">Accepted</span></p>
+          <p>The app must launch without opening a terminal window that needs to stay open. Release builds use <code>-ldflags="-H=windowsgui"</code>.</p>
+        </div>
+        <div class="decision">
+          <h3>Native Windows UI</h3>
+          <p><span class="status">Accepted</span></p>
+          <p>The UI uses the Go Walk toolkit for a native Windows desktop application rather than a web app or terminal interface.</p>
+        </div>
+        <div class="decision">
+          <h3>Public GitHub distribution</h3>
+          <p><span class="status">Accepted</span></p>
+          <p>The repository is public, and releases attach the built <code>pingaro.exe</code> asset with user-facing download and run instructions.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="measurement">
+      <h2>Measurement Model</h2>
+      <table>
+        <tr>
+          <th>Metric</th>
+          <th>How Pingaro Presents It</th>
+          <th>Decision</th>
+        </tr>
+        <tr>
+          <td>RTT</td>
+          <td>Realtime chart in milliseconds.</td>
+          <td>Keep a live view so users can see immediate spikes and loss events.</td>
+        </tr>
+        <tr>
+          <td>p95 RTT</td>
+          <td>Aggregate chart per configured period.</td>
+          <td>Use p95 rather than average so sustained high latency is visible without letting one extreme point dominate.</td>
+        </tr>
+        <tr>
+          <td>Loss</td>
+          <td>Aggregate packet-loss percentage.</td>
+          <td>Show loss separately because a connection can have acceptable RTT but still fail calls or games through drops.</td>
+        </tr>
+        <tr>
+          <td>One-way jitter</td>
+          <td>Estimated as half the two-way jitter and shown only for relevant use profiles.</td>
+          <td>Show jitter when it matters for audio/video, but keep the UI simpler when the selected uses do not need it.</td>
+        </tr>
+      </table>
+
+      <h3>Target Handling</h3>
+      <ul>
+        <li>Users can configure up to three target groups.</li>
+        <li>For Internet quality, Pingaro can ping multiple well-known hosts in parallel.</li>
+        <li>If at least one Internet target replies in a batch, the batch is treated as successful and the minimum RTT is used.</li>
+        <li>This reduces false alarms caused by one public host having a temporary issue.</li>
+      </ul>
+    </section>
+
+    <section id="profiles">
+      <h2>Internet Use Profiles</h2>
+      <p>Internet Use is a multi-select list. The selected profiles determine the thresholds for classifying good, minor, noticeable, and serious issues.</p>
+      <table>
+        <tr>
+          <th>Profile</th>
+          <th>Default</th>
+          <th>RTT thresholds (ms)</th>
+          <th>Loss thresholds (%)</th>
+          <th>Jitter thresholds (ms)</th>
+          <th>Shows jitter graph</th>
+        </tr>
+        <tr>
+          <td>email &amp; browsing</td>
+          <td>Yes</td>
+          <td>250 / 500 / 1000</td>
+          <td>3 / 8 / 15</td>
+          <td>80 / 150 / 300</td>
+          <td>No</td>
+        </tr>
+        <tr>
+          <td>remote desktop</td>
+          <td>No</td>
+          <td>120 / 200 / 350</td>
+          <td>1 / 3 / 8</td>
+          <td>30 / 60 / 120</td>
+          <td>No</td>
+        </tr>
+        <tr>
+          <td>audio calls</td>
+          <td>Yes</td>
+          <td>120 / 180 / 300</td>
+          <td>1 / 3 / 6</td>
+          <td>20 / 40 / 80</td>
+          <td>Yes</td>
+        </tr>
+        <tr>
+          <td>video calls</td>
+          <td>Yes</td>
+          <td>150 / 250 / 400</td>
+          <td>2 / 5 / 10</td>
+          <td>30 / 60 / 120</td>
+          <td>Yes</td>
+        </tr>
+        <tr>
+          <td>online gaming</td>
+          <td>Yes</td>
+          <td>80 / 140 / 220</td>
+          <td>0.5 / 1.5 / 4</td>
+          <td>15 / 30 / 60</td>
+          <td>No</td>
+        </tr>
+        <tr>
+          <td>Superhuman Gaming</td>
+          <td>No</td>
+          <td>40 / 80 / 140</td>
+          <td>0.2 / 1 / 2.5</td>
+          <td>8 / 18 / 35</td>
+          <td>No</td>
+        </tr>
+      </table>
+
+      <div class="note">
+        <strong>Threshold rule:</strong> when multiple profiles are selected, Pingaro uses the most demanding threshold for each metric. In practice, it takes the lowest threshold among the selected profiles for RTT, loss, and jitter.
+      </div>
+    </section>
+
+    <section id="summary">
+      <h2>Overall Status Label</h2>
+      <p>The bold overall status label appears under the total ping count. It summarizes connection quality without requiring users to read every chart.</p>
+      <table>
+        <tr>
+          <th>Situation</th>
+          <th>Message Pattern</th>
+        </tr>
+        <tr>
+          <td>No issues detected</td>
+          <td>So far, the connection looks good.</td>
+        </tr>
+        <tr>
+          <td>One issue</td>
+          <td>The connection has had a minor issue at 12:34.</td>
+        </tr>
+        <tr>
+          <td>Two or three issues of one severity</td>
+          <td>The connection has had some noticeable issues (between 12:10-12:15).</td>
+        </tr>
+        <tr>
+          <td>Four or more issues of one severity</td>
+          <td>The connection has had several serious issues (between 12:10-12:15).</td>
+        </tr>
+        <tr>
+          <td>Mixed severities</td>
+          <td>The connection has had: a minor issue at 12:34, some noticeable issues (last at 12:20), several serious issues (between 12:10-12:15).</td>
+        </tr>
+      </table>
+
+      <h3>Source of Truth</h3>
+      <ul>
+        <li>Once aggregate samples exist, the status label is based on the aggregate charts: p95 RTT, loss, and visible jitter.</li>
+        <li>Before aggregate samples exist, the label falls back to the realtime RTT graph.</li>
+        <li>If the jitter graph is hidden, jitter is not considered for the overall status label.</li>
+        <li>The label background uses the same severity colors as the graph warning regions.</li>
+      </ul>
+    </section>
+
+    <section id="visuals">
+      <h2>Visual Design</h2>
+      <h3>Severity Colors</h3>
+      <div class="swatches">
+        <div class="swatch"><span class="chip" style="background: var(--good)"></span><div><strong>Good</strong><br><code>#39e75f</code></div></div>
+        <div class="swatch"><span class="chip" style="background: var(--minor)"></span><div><strong>Minor</strong><br><code>#c1c1c8</code></div></div>
+        <div class="swatch"><span class="chip" style="background: var(--noticeable)"></span><div><strong>Noticeable</strong><br><code>#fcea90</code></div></div>
+        <div class="swatch"><span class="chip" style="background: var(--serious)"></span><div><strong>Serious</strong><br><code>#f8aeaf</code></div></div>
+      </div>
+
+      <h3>Group Line Colors</h3>
+      <div class="swatches">
+        <div class="swatch"><span class="chip line" style="background: var(--group-1)"></span><div><strong>Group 1</strong><br><code>#000000</code></div></div>
+        <div class="swatch"><span class="chip line" style="background: var(--group-2)"></span><div><strong>Group 2</strong><br><code>#850087</code></div></div>
+        <div class="swatch"><span class="chip line" style="background: var(--group-3)"></span><div><strong>Group 3</strong><br><code>#287c27</code></div></div>
+      </div>
+
+      <h3>Layout Decisions</h3>
+      <ul>
+        <li>The first screen is the actual monitoring dashboard, not a landing page.</li>
+        <li>The left pane contains target groups, Internet uses, aggregation settings, and actions.</li>
+        <li>The right pane contains the realtime RTT chart and aggregate charts.</li>
+        <li>Chart headers, last values, plot area, axis labels, and warning regions are custom-painted inside Walk <code>CustomWidget</code> controls.</li>
+        <li>When jitter is hidden, its vertical space is redistributed to visible charts.</li>
+        <li>Loss and jitter charts can shrink when their data does not need full height, with the saved space redistributed to other charts.</li>
+        <li>Y-axis scaling uses bucketed maxima so the graph stays stable while still covering the visible data.</li>
+      </ul>
+
+      <div class="mockup" aria-label="Simplified Pingaro layout mockup">
+        <div class="mockup-top">Pingaro - Long term network quality monitor</div>
+        <div class="mockup-body">
+          <div class="mockup-side">
+            <div class="control"></div>
+            <div class="control"></div>
+            <div class="control"></div>
+            <div class="summary-good">So far, the connection looks good.</div>
+            <div class="summary-bad">The connection has had a serious issue at 12:34.</div>
+          </div>
+          <div class="mockup-chart">
+            <div class="chart"></div>
+            <div class="chart"></div>
+            <div class="chart"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="defaults">
+      <h2>Defaults And Persistence</h2>
+      <table>
+        <tr>
+          <th>Area</th>
+          <th>Decision</th>
+          <th>Reason</th>
+        </tr>
+        <tr>
+          <td>Fresh target groups</td>
+          <td>Group #1 is the detected default gateway. Group #2 is Internet. If no gateway is detected, Internet becomes Group #1.</td>
+          <td>Local gateway quality is useful context before public Internet quality, and it helps separate LAN/router issues from ISP/Internet issues.</td>
+        </tr>
+        <tr>
+          <td>Internet targets</td>
+          <td><code>1.1.1.1, 1.1.1.2, 8.8.8.8, 8.8.4.4</code></td>
+          <td>Use multiple well-known targets so one host does not dominate the diagnosis.</td>
+        </tr>
+        <tr>
+          <td>Default selected uses</td>
+          <td>email &amp; browsing, audio calls, video calls, online gaming</td>
+          <td>These cover common usage without immediately applying the strictest possible thresholds.</td>
+        </tr>
+        <tr>
+          <td>Default unselected uses</td>
+          <td>remote desktop, Superhuman Gaming</td>
+          <td>These are more specialized and can make the app more sensitive than most users expect.</td>
+        </tr>
+        <tr>
+          <td>Saved config</td>
+          <td>Settings are stored under <code>%AppData%\Pingaro</code> and reused on next launch.</td>
+          <td>Most users repeatedly monitor the same connection and should not need to re-enter targets every time.</td>
+        </tr>
+      </table>
+    </section>
+
+    <section id="build">
+      <h2>Build And Release Decisions</h2>
+      <div class="grid">
+        <div class="decision">
+          <h3>Repeatable Windows resources</h3>
+          <p><span class="status">Accepted</span></p>
+          <p><code>go generate ./...</code> runs <code>github.com/akavel/rsrc@v0.10.2</code> to refresh <code>rsrc.syso</code> from the manifest and icon.</p>
+        </div>
+        <div class="decision">
+          <h3>GUI subsystem build</h3>
+          <p><span class="status">Accepted</span></p>
+          <p>Release builds use <code>go build -trimpath -ldflags="-H=windowsgui" -o pingaro.exe .</code>.</p>
+        </div>
+        <div class="decision">
+          <h3>One release asset</h3>
+          <p><span class="status">Accepted</span></p>
+          <p>GitHub releases attach <code>pingaro.exe</code>. Users download and run that executable directly.</p>
+        </div>
+        <div class="decision">
+          <h3>Unsigned app warning</h3>
+          <p><span class="status">Accepted</span></p>
+          <p>Release notes and README tell users how to run the unsigned executable only if it was downloaded from the official GitHub release page.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="history">
+      <h2>History And Compatibility</h2>
+      <ul>
+        <li>History files use JSON records with a version field.</li>
+        <li>Saved samples and aggregate points can be loaded back into the UI.</li>
+        <li>Legacy single-use configuration is normalized into the newer multi-use list.</li>
+        <li>The old "low latency gaming" profile name is normalized to "Superhuman Gaming".</li>
+        <li>Loaded history can apply its saved config when present.</li>
+      </ul>
+    </section>
+
+    <section id="timeline">
+      <h2>Development Timeline</h2>
+      <div class="timeline">
+        <div><strong>Native GUI</strong></div>
+        <div>Ported the monitor to Go and added a native Windows GUI with realtime and aggregate charts.</div>
+        <div><strong>Graph refinements</strong></div>
+        <div>Improved chart pixel rendering, header layout, spacing, scaling, and warning severity colors.</div>
+        <div><strong>Product rename</strong></div>
+        <div>Renamed the project to Pingaro and adopted "Long term network quality monitor" as the tagline.</div>
+        <div><strong>GUI-only scope</strong></div>
+        <div>Removed the TUI path and standardized on one executable: <code>pingaro.exe</code>.</div>
+        <div><strong>Use profiles</strong></div>
+        <div>Added multi-select Internet uses, strictest-threshold grading, Superhuman Gaming, and conditional jitter visibility.</div>
+        <div><strong>Overall status</strong></div>
+        <div>Added the bold status summary below the ping count, using aggregate graphs as the primary source.</div>
+        <div><strong>Icon and release polish</strong></div>
+        <div>Embedded the app icon, set the GUI window icon, and published GitHub releases with the built exe.</div>
+        <div><strong>Palette update</strong></div>
+        <div>Updated severity colors and group line colors, including a fix so black is treated as a valid graph line color.</div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
