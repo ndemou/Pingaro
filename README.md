@@ -34,6 +34,8 @@ When checking Internet quality, Pingaro can ping multiple well-known hosts in pa
 4. Click `Start`.
 5. Watch the graphs for spikes, packet loss, or sustained jitter.
 
+The special target name `localhost` resolves to `127.0.0.1`. The special target name `gateway` resolves to the current default gateway IP address.
+
 By default Pingaro selects `email & browsing`, `audio calls`, `video calls`, and `online gaming`. It leaves `remote desktop` and `Superhuman Gaming` unchecked.
 
 When multiple uses are selected, Pingaro grades good, medium, and bad measurements using the strictest threshold from the selected uses. The jitter graph is shown only when `audio calls` or `video calls` is selected.

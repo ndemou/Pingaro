@@ -90,25 +90,54 @@ func TestSeverityColors(t *testing.T) {
 }
 
 func TestDefaultGroupsPutGatewayBeforeInternet(t *testing.T) {
-	got := defaultGroups("192.168.1.1")
+	got := defaultGroups()
 	if len(got) != 2 {
 		t.Fatalf("len(defaultGroups) = %d, want 2", len(got))
 	}
-	if got[0].Name != "Gateway" || got[0].Targets != "192.168.1.1" {
-		t.Fatalf("group 1 = %+v, want Gateway 192.168.1.1", got[0])
+	if got[0].Name != "Gateway" || got[0].Targets != "gateway" {
+		t.Fatalf("group 1 = %+v, want Gateway gateway", got[0])
 	}
 	if got[1].Name != "Internet" || got[1].Targets != defaultInternetTargets {
 		t.Fatalf("group 2 = %+v, want Internet defaults", got[1])
 	}
 }
 
-func TestDefaultGroupsUseInternetWhenGatewayMissing(t *testing.T) {
-	got := defaultGroups("")
-	if len(got) != 1 {
-		t.Fatalf("len(defaultGroups) = %d, want 1", len(got))
+func TestParseTargetsPreservesSpecialNames(t *testing.T) {
+	got := parseTargets("localhost, gateway; 1.1.1.1")
+	want := []string{"localhost", "gateway", "1.1.1.1"}
+	if len(got) != len(want) {
+		t.Fatalf("parseTargets length = %d, want %d: %v", len(got), len(want), got)
 	}
-	if got[0].Name != "Internet" || got[0].Targets != defaultInternetTargets {
-		t.Fatalf("group 1 = %+v, want Internet defaults", got[0])
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("parseTargets[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+func TestResolveTargetsReplacesSpecialNames(t *testing.T) {
+	got := resolveTargets([]string{"localhost", "gateway", "8.8.8.8"}, "192.168.1.1")
+	want := []string{"127.0.0.1", "192.168.1.1", "8.8.8.8"}
+	if len(got) != len(want) {
+		t.Fatalf("resolveTargets length = %d, want %d: %v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("resolveTargets[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+func TestResolveTargetsDropsGatewayWhenGatewayMissing(t *testing.T) {
+	got := resolveTargets([]string{"gateway", "localhost"}, "")
+	want := []string{"127.0.0.1"}
+	if len(got) != len(want) {
+		t.Fatalf("resolveTargets length = %d, want %d: %v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("resolveTargets[%d] = %q, want %q", i, got[i], want[i])
+		}
 	}
 }
 

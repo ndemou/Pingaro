@@ -663,8 +663,13 @@
         </tr>
         <tr>
           <td>Fresh target groups</td>
-          <td>Group #1 is the detected default gateway. Group #2 is Internet. If no gateway is detected, Internet becomes Group #1.</td>
-          <td>Local gateway quality is useful context before public Internet quality, and it helps separate LAN/router issues from ISP/Internet issues.</td>
+          <td>Group #1 is Gateway with target <code>gateway</code>. Group #2 is Internet.</td>
+          <td>Local gateway quality is useful context before public Internet quality. Keeping the target as the special name <code>gateway</code> lets Pingaro resolve the current default gateway at runtime.</td>
+        </tr>
+        <tr>
+          <td>Special target names</td>
+          <td><code>localhost</code> resolves to <code>127.0.0.1</code>. <code>gateway</code> resolves to the current default gateway IP address.</td>
+          <td>Users can express stable intent in saved targets while Pingaro resolves machine-specific addresses when monitoring starts.</td>
         </tr>
         <tr>
           <td>Internet targets</td>

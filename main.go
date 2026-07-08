@@ -381,18 +381,16 @@ func defaultConfig() savedConfig {
 		PPS:                1,
 		AggregationSeconds: 120,
 		UseTypes:           defaultUseTypes(),
-		Groups:             defaultGroups(defaultGateway()),
+		Groups:             defaultGroups(),
 	}
 	return cfg
 }
 
-func defaultGroups(gateway string) []savedGroup {
-	groups := make([]savedGroup, 0, 2)
-	if gateway = strings.TrimSpace(gateway); gateway != "" {
-		groups = append(groups, savedGroup{Name: "Gateway", Targets: gateway})
+func defaultGroups() []savedGroup {
+	return []savedGroup{
+		{Name: "Gateway", Targets: "gateway"},
+		{Name: "Internet", Targets: defaultInternetTargets},
 	}
-	groups = append(groups, savedGroup{Name: "Internet", Targets: defaultInternetTargets})
-	return groups
 }
 
 func normalizeSavedGroups(groups []savedGroup) []savedGroup {
@@ -673,8 +671,15 @@ func (a *app) setRunning(running bool) {
 
 func (a *app) targetGroups() []targetGroup {
 	groups := make([]targetGroup, 0, 3)
+	gateway := ""
+	gatewayLoaded := false
 	for i := 0; i < 3; i++ {
-		targets := parseTargets(a.groupTargets[i].Text())
+		rawTargets := parseTargets(a.groupTargets[i].Text())
+		if targetListNeedsGateway(rawTargets) && !gatewayLoaded {
+			gateway = defaultGateway()
+			gatewayLoaded = true
+		}
+		targets := resolveTargets(rawTargets, gateway)
 		if len(targets) == 0 {
 			continue
 		}
@@ -687,11 +692,8 @@ func (a *app) targetGroups() []targetGroup {
 	return groups
 }
 
-func (a *app) saveCurrentConfig(groups []targetGroup, pps, aggSeconds int) {
-	cfg := savedConfig{PPS: pps, AggregationSeconds: aggSeconds, UseTypes: a.selectedUseTypes()}
-	for _, g := range groups {
-		cfg.Groups = append(cfg.Groups, savedGroup{Name: g.Name, Targets: strings.Join(g.Targets, ", ")})
-	}
+func (a *app) saveCurrentConfig(_ []targetGroup, pps, aggSeconds int) {
+	cfg := savedConfig{PPS: pps, AggregationSeconds: aggSeconds, UseTypes: a.selectedUseTypes(), Groups: a.currentSavedGroups()}
 	a.settings = cfg
 	saveConfig(cfg)
 }
@@ -1146,7 +1148,7 @@ func (a *app) trimAggregates() {
 }
 
 func (a *app) maxAggregatePoints() int {
-	groupCount := max(1, len(a.targetGroups()))
+	groupCount := max(1, len(a.currentSavedGroups()))
 	width := 0
 	for _, chart := range []*walk.CustomWidget{a.p95Chart, a.lossChart, a.jitterChart} {
 		if chart == nil {
@@ -1165,17 +1167,25 @@ func (a *app) maxAggregatePoints() int {
 
 func (a *app) currentConfig() savedConfig {
 	return savedConfig{
-		Groups:             currentSavedGroups(a.targetGroups()),
+		Groups:             a.currentSavedGroups(),
 		PPS:                clampInt(parseInt(a.pps.Text(), 1), 1, 20),
 		AggregationSeconds: clampInt(parseInt(a.agg.Text(), 120), 3, 3600),
 		UseTypes:           a.selectedUseTypes(),
 	}
 }
 
-func currentSavedGroups(groups []targetGroup) []savedGroup {
-	out := make([]savedGroup, 0, len(groups))
-	for _, g := range groups {
-		out = append(out, savedGroup{Name: g.Name, Targets: strings.Join(g.Targets, ", ")})
+func (a *app) currentSavedGroups() []savedGroup {
+	out := make([]savedGroup, 0, 3)
+	for i := 0; i < 3; i++ {
+		targets := strings.Join(parseTargets(a.groupTargets[i].Text()), ", ")
+		if targets == "" {
+			continue
+		}
+		name := strings.TrimSpace(a.groupNames[i].Text())
+		if name == "" {
+			name = fmt.Sprintf("Group %d", i+1)
+		}
+		out = append(out, savedGroup{Name: name, Targets: targets})
 	}
 	return out
 }
@@ -2094,6 +2104,38 @@ func parseTargets(value string) []string {
 		}
 	}
 	return targets
+}
+
+func resolveTargets(targets []string, gateway string) []string {
+	out := make([]string, 0, len(targets))
+	for _, target := range targets {
+		resolved := resolveTarget(target, gateway)
+		if resolved != "" {
+			out = append(out, resolved)
+		}
+	}
+	return out
+}
+
+func resolveTarget(target, gateway string) string {
+	target = strings.TrimSpace(target)
+	switch strings.ToLower(target) {
+	case "localhost":
+		return "127.0.0.1"
+	case "gateway":
+		return strings.TrimSpace(gateway)
+	default:
+		return target
+	}
+}
+
+func targetListNeedsGateway(targets []string) bool {
+	for _, target := range targets {
+		if strings.EqualFold(strings.TrimSpace(target), "gateway") {
+			return true
+		}
+	}
+	return false
 }
 
 func withoutLost(values []int) []int {
