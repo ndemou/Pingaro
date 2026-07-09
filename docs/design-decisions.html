@@ -581,6 +581,7 @@
         <li>X-axis labels use a shared time-tick selector with sensible time steps, second-level labels, at least three labels when space allows, and a density cap of roughly half the plot width.</li>
         <li>When jitter is hidden, its vertical space is redistributed to visible charts.</li>
         <li>Loss and jitter charts can shrink when their data does not need full height, with the saved space redistributed to other charts.</li>
+        <li>Adaptive chart heights are layout stretch weights, not hard widget minimum heights; layout updates, history loads, start/stop actions, and jitter visibility changes must not increase the window height chosen by the user.</li>
         <li>Y-axis scaling uses bucketed maxima so the graph stays stable while still covering the visible data.</li>
       </ul>
 
@@ -746,6 +747,8 @@
         <div>Renamed the manual history default to <code>history.json</code>, changed visible labels to Use profiles, Measurements/sec, Aggregation window (sec), and No measurements yet, and switched profile names to consistent title case.</div>
         <div><strong>Session autosave history</strong></div>
         <div>Changed automatic history persistence from one rolling <code>history.json</code> file to timestamped per-session files, with PID and numeric suffixes for same-second collisions.</div>
+        <div><strong>Stable window height</strong></div>
+        <div>Changed adaptive chart sizing so it redistributes the current chart area without forcing the top-level window to grow vertically.</div>
       </div>
     </section>
   </main>

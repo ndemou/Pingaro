@@ -487,6 +487,19 @@ func TestRedistributedChartHeightsHidesJitterAndSharesSpace(t *testing.T) {
 	}
 }
 
+func TestChartWidgetMinSizeDoesNotForceAdaptiveHeight(t *testing.T) {
+	got := chartWidgetMinSize()
+	if got.Height != 0 {
+		t.Fatalf("chart min height = %d, want 0", got.Height)
+	}
+	if got.Width != 0 {
+		t.Fatalf("chart min width = %d, want 0", got.Width)
+	}
+	if got.Height >= combinedChartHeight(rttChartHeight) {
+		t.Fatalf("chart min height follows adaptive height: got %d", got.Height)
+	}
+}
+
 func TestDefaultUseTypesExcludeRemoteDesktopAndSuperhumanGaming(t *testing.T) {
 	got := useTypeSet(defaultUseTypes())
 	for _, name := range []string{"Browsing & Email", "Audio Calls", "Video Calls", "Online Gaming"} {

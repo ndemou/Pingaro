@@ -50,6 +50,7 @@ const (
 	aggregateChartHeight = 145
 	chartHeaderHeight    = 18
 	headerChartGap       = 2
+	chartMinHeight       = 0
 	xAxisLabelWidth      = 64
 )
 
@@ -747,10 +748,10 @@ func (a *app) run() error {
 						Layout:        VBox{Margins: Margins{Left: 4, Top: 4, Right: 4, Bottom: 4}, Spacing: 0},
 						Children: []Widget{
 							VSpacer{Size: 2},
-							CustomWidget{AssignTo: &a.rttChart, MinSize: Size{0, combinedChartHeight(rttChartHeight)}, StretchFactor: rttChartHeight, InvalidatesOnResize: true, PaintPixels: a.paintRTT},
-							CustomWidget{AssignTo: &a.p95Chart, MinSize: Size{0, combinedChartHeight(aggregateChartHeight)}, StretchFactor: aggregateChartHeight, InvalidatesOnResize: true, PaintPixels: a.paintP95},
-							CustomWidget{AssignTo: &a.lossChart, MinSize: Size{0, combinedChartHeight(aggregateChartHeight)}, StretchFactor: aggregateChartHeight, InvalidatesOnResize: true, PaintPixels: a.paintLoss},
-							CustomWidget{AssignTo: &a.jitterChart, MinSize: Size{0, combinedChartHeight(aggregateChartHeight)}, StretchFactor: aggregateChartHeight, InvalidatesOnResize: true, PaintPixels: a.paintJitter},
+							CustomWidget{AssignTo: &a.rttChart, MinSize: chartWidgetMinSize(), StretchFactor: rttChartHeight, InvalidatesOnResize: true, PaintPixels: a.paintRTT},
+							CustomWidget{AssignTo: &a.p95Chart, MinSize: chartWidgetMinSize(), StretchFactor: aggregateChartHeight, InvalidatesOnResize: true, PaintPixels: a.paintP95},
+							CustomWidget{AssignTo: &a.lossChart, MinSize: chartWidgetMinSize(), StretchFactor: aggregateChartHeight, InvalidatesOnResize: true, PaintPixels: a.paintLoss},
+							CustomWidget{AssignTo: &a.jitterChart, MinSize: chartWidgetMinSize(), StretchFactor: aggregateChartHeight, InvalidatesOnResize: true, PaintPixels: a.paintJitter},
 						},
 					},
 				},
@@ -1677,13 +1678,6 @@ func (a *app) setChartHeight(chart *walk.CustomWidget, current *int, height int)
 		return
 	}
 	*current = height
-	combinedHeight := 0
-	maxHeight := 0
-	if height > 0 {
-		combinedHeight = combinedChartHeight(height)
-		maxHeight = 1 << 20
-	}
-	_ = chart.SetMinMaxSize(walk.Size{Width: 0, Height: combinedHeight}, walk.Size{Width: 1 << 20, Height: maxHeight})
 	if parent := chart.Parent(); parent != nil {
 		if layout := parent.Layout(); layout != nil {
 			if stretchLayout, ok := layout.(interface {
@@ -1693,6 +1687,10 @@ func (a *app) setChartHeight(chart *walk.CustomWidget, current *int, height int)
 			}
 		}
 	}
+}
+
+func chartWidgetMinSize() Size {
+	return Size{Width: 0, Height: chartMinHeight}
 }
 
 func combinedChartHeight(chartHeight int) int {
