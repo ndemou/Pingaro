@@ -437,8 +437,84 @@ func TestAggregateVisiblePointLimitScalesWithGroupCount(t *testing.T) {
 	}
 
 	got := aggregateVisiblePointLimit(points, 100)
-	if got != 300 {
-		t.Fatalf("aggregateVisiblePointLimit() = %d, want 300", got)
+	want := 3 * (100 / aggregateMinPixelsPerSample)
+	if got != want {
+		t.Fatalf("aggregateVisiblePointLimit() = %d, want %d", got, want)
+	}
+}
+
+func TestAggregatePointCapacityUsesMinimumPixelsPerSample(t *testing.T) {
+	got := aggregatePointCapacity(1920, aggregateMinPixelsPerSample)
+	if got != 320 {
+		t.Fatalf("aggregatePointCapacity() = %d, want 320", got)
+	}
+	if got := aggregatePointCapacity(0, aggregateMinPixelsPerSample); got != 1 {
+		t.Fatalf("zero-width aggregatePointCapacity() = %d, want 1", got)
+	}
+}
+
+func TestMaxAggregatePointsForWidthScalesByGroup(t *testing.T) {
+	got := maxAggregatePointsForWidth(3, 1920)
+	if got != 960 {
+		t.Fatalf("maxAggregatePointsForWidth() = %d, want 960", got)
+	}
+}
+
+func TestVisibleAggregatePointsKeepsMinimumPixelCapacity(t *testing.T) {
+	points := make([]chartPoint, 0, 20)
+	for i := 0; i < 20; i++ {
+		points = append(points, chartPoint{groupIndex: 0})
+	}
+	got := visibleAggregatePoints(points, 100)
+	wantLen := 100 / aggregateMinPixelsPerSample
+	if len(got) != wantLen {
+		t.Fatalf("len(visibleAggregatePoints) = %d, want %d", len(got), wantLen)
+	}
+	if got[0] != points[len(points)-wantLen] {
+		t.Fatal("visibleAggregatePoints did not keep the newest points")
+	}
+}
+
+func TestAggregateChartTimeRangeDoesNotScrollWhenEmpty(t *testing.T) {
+	start := time.Date(2026, time.July, 9, 12, 0, 0, 0, time.Local)
+	gotStart, gotEnd := aggregateChartTimeRange(nil, 240, 2*time.Minute, start)
+	if !gotStart.Equal(start) {
+		t.Fatalf("empty aggregate start = %v, want %v", gotStart, start)
+	}
+	wantEnd := start.Add(2 * time.Minute * time.Duration(240/aggregatePreferredPixelsPerSample-1))
+	if !gotEnd.Equal(wantEnd) {
+		t.Fatalf("empty aggregate end = %v, want %v", gotEnd, wantEnd)
+	}
+}
+
+func TestAggregateChartTimeRangeStartsAtPreferredSpacing(t *testing.T) {
+	start := time.Date(2026, time.July, 9, 12, 0, 0, 0, time.Local)
+	points := []chartPoint{
+		{at: start, groupIndex: 0},
+		{at: start.Add(2 * time.Minute), groupIndex: 0},
+	}
+	gotStart, gotEnd := aggregateChartTimeRange(points, 240, 2*time.Minute, time.Time{})
+	if !gotStart.Equal(start) {
+		t.Fatalf("aggregate start = %v, want %v", gotStart, start)
+	}
+	wantEnd := start.Add(2 * time.Minute * time.Duration(240/aggregatePreferredPixelsPerSample-1))
+	if !gotEnd.Equal(wantEnd) {
+		t.Fatalf("aggregate end = %v, want %v", gotEnd, wantEnd)
+	}
+}
+
+func TestAggregateChartTimeRangeCompressesUntilMinimumSpacing(t *testing.T) {
+	start := time.Date(2026, time.July, 9, 12, 0, 0, 0, time.Local)
+	points := make([]chartPoint, 0, 20)
+	for i := 0; i < 20; i++ {
+		points = append(points, chartPoint{at: start.Add(time.Duration(i) * 2 * time.Minute), groupIndex: 0})
+	}
+	gotStart, gotEnd := aggregateChartTimeRange(points, 240, 2*time.Minute, time.Time{})
+	if !gotStart.Equal(points[0].at) {
+		t.Fatalf("aggregate start = %v, want %v", gotStart, points[0].at)
+	}
+	if !gotEnd.Equal(points[len(points)-1].at) {
+		t.Fatalf("aggregate end = %v, want %v", gotEnd, points[len(points)-1].at)
 	}
 }
 

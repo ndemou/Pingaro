@@ -582,6 +582,8 @@
         <li>When jitter is hidden, its vertical space is redistributed to visible charts.</li>
         <li>Loss and jitter charts can shrink when their data does not need full height, with the saved space redistributed to other charts.</li>
         <li>Adaptive chart heights are layout stretch weights, not hard widget minimum heights; layout updates, history loads, start/stop actions, and jitter visibility changes must not increase the window height chosen by the user.</li>
+        <li>Aggregate charts use 6 pixels as the minimum horizontal spacing per sample and prefer 24 pixels when data is sparse. They keep an empty chart's time range fixed, compress point spacing as aggregate samples accumulate, and only scroll once the current plot cannot preserve the 6-pixel minimum.</li>
+        <li>Aggregate point retention is capped per target group at the current monitor width in pixels divided by the 6-pixel minimum sample spacing, with the initial window width used as a fallback when the monitor width is unavailable.</li>
         <li>Y-axis scaling uses bucketed maxima so the graph stays stable while still covering the visible data.</li>
       </ul>
 
@@ -749,6 +751,8 @@
         <div>Changed automatic history persistence from one rolling <code>history.json</code> file to timestamped per-session files, with PID and numeric suffixes for same-second collisions.</div>
         <div><strong>Stable window height</strong></div>
         <div>Changed adaptive chart sizing so it redistributes the current chart area without forcing the top-level window to grow vertically.</div>
+        <div><strong>Aggregate graph density</strong></div>
+        <div>Added a 6-pixel minimum aggregate sample spacing, a 24-pixel preferred sparse-data spacing, fixed empty aggregate ranges, and monitor-width-based aggregate retention.</div>
       </div>
     </section>
   </main>

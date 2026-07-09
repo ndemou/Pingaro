@@ -23,9 +23,11 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/lxn/walk"
 	. "github.com/lxn/walk/declarative"
+	"github.com/lxn/win"
 )
 
 const lostRTT = 9999
@@ -36,6 +38,8 @@ const (
 )
 
 const (
+	initialWindowWidth        = 1180
+	initialWindowHeight       = 760
 	minAutosaveHistorySamples = 10
 	autosaveHistoryInterval   = 10 * time.Minute
 )
@@ -52,6 +56,11 @@ const (
 	headerChartGap       = 2
 	chartMinHeight       = 0
 	xAxisLabelWidth      = 64
+)
+
+const (
+	aggregateMinPixelsPerSample       = 6
+	aggregatePreferredPixelsPerSample = aggregateMinPixelsPerSample * 4
 )
 
 var (
@@ -251,6 +260,7 @@ type app struct {
 	lossChartHeight   int
 	jitterChartHeight int
 	summarySeverity   int
+	aggregateEmptyAt  time.Time
 }
 
 var useProfiles = []useProfile{
@@ -674,7 +684,7 @@ func (a *app) run() error {
 		Title:    "Pingaro - Long term network quality monitor",
 		Icon:     appIconResourceID,
 		MinSize:  Size{980, 650},
-		Size:     Size{1180, 760},
+		Size:     Size{initialWindowWidth, initialWindowHeight},
 		Layout:   VBox{MarginsZero: true},
 		Children: []Widget{
 			HSplitter{
@@ -842,6 +852,7 @@ func (a *app) start() {
 	a.period = time.Duration(aggSeconds) * time.Second
 	a.historyViewEnd = time.Time{}
 	a.startedAt = time.Now()
+	a.aggregateEmptyAt = a.startedAt
 	a.sessionPings = 0
 	a.lastHistorySave = time.Time{}
 	a.setRunning(true)
@@ -1315,10 +1326,14 @@ func (a *app) loadHistory(path string) error {
 	a.autosavePath = ""
 	a.sessionPings = 0
 	a.startedAt = time.Time{}
+	a.aggregateEmptyAt = time.Time{}
 	a.historyViewEnd = time.Time{}
 	for _, h := range records {
 		if h.Version != 1 {
 			return fmt.Errorf("unsupported history version %d", h.Version)
+		}
+		if a.aggregateEmptyAt.IsZero() && !h.SavedAt.IsZero() {
+			a.aggregateEmptyAt = h.SavedAt
 		}
 		if len(h.Config.Groups) > 0 {
 			a.applyConfig(h.Config)
@@ -1375,6 +1390,10 @@ func (a *app) loadHistory(path string) error {
 			}
 		}
 	}
+	if !a.startedAt.IsZero() {
+		a.aggregateEmptyAt = a.startedAt
+	}
+	a.trimAggregates()
 	a.refreshMetricsFromLoadedHistory()
 	a.invalidateCharts()
 	return nil
@@ -1407,20 +1426,34 @@ func (a *app) trimAggregates() {
 
 func (a *app) maxAggregatePoints() int {
 	groupCount := max(1, len(a.currentSavedGroups()))
-	width := 0
-	for _, chart := range []*walk.CustomWidget{a.p95Chart, a.lossChart, a.jitterChart} {
-		if chart == nil {
-			continue
+	return maxAggregatePointsForWidth(groupCount, a.currentScreenWidthPixels())
+}
+
+func (a *app) currentScreenWidthPixels() int {
+	if a != nil && a.MainWindow != nil {
+		hwnd := a.MainWindow.Handle()
+		if hwnd != 0 {
+			var mi win.MONITORINFO
+			mi.CbSize = uint32(unsafe.Sizeof(mi))
+			if win.GetMonitorInfo(win.MonitorFromWindow(hwnd, win.MONITOR_DEFAULTTONEAREST), &mi) {
+				if width := int(mi.RcMonitor.Right - mi.RcMonitor.Left); width > 0 {
+					return width
+				}
+			}
 		}
-		if chart == a.jitterChart && !a.shouldShowJitterChart() {
-			continue
+		if width := a.MainWindow.BoundsPixels().Width; width > 0 {
+			return width
 		}
-		width = max(width, plotBounds(chart.ClientBoundsPixels()).Width)
 	}
-	if width <= 0 {
-		width = 1000
+	if width := int(win.GetSystemMetrics(win.SM_CXSCREEN)); width > 0 {
+		return width
 	}
-	return max(groupCount*width+groupCount*8, groupCount*120)
+	return initialWindowWidth
+}
+
+func maxAggregatePointsForWidth(groupCount, screenWidth int) int {
+	groupCount = max(1, groupCount)
+	return groupCount * aggregatePointCapacity(screenWidth, aggregateMinPixelsPerSample)
 }
 
 func (a *app) currentConfig() savedConfig {
@@ -1856,32 +1889,89 @@ func (a *app) paintJitter(canvas *walk.Canvas, bounds walk.Rectangle) error {
 
 func (a *app) drawAggregateChart(canvas *walk.Canvas, rect walk.Rectangle, points []chartPoint, maxValue float64, unit string, color walk.Color) error {
 	plot := plotBounds(rect)
-	visibleLimit := aggregateVisiblePointLimit(points, plot.Width)
-	if len(points) > visibleLimit {
-		points = points[len(points)-visibleLimit:]
-	}
-	if len(points) == 0 {
-		now := time.Now()
-		return drawTimeChart(canvas, rect, nil, now.Add(-a.period), now, 10*time.Minute, 0, maxValue, unit, color)
-	}
-	start := points[0].at
-	end := points[len(points)-1].at
-	if !end.After(start) {
-		start = end.Add(-a.period)
-	}
+	points = visibleAggregatePoints(points, plot.Width)
+	start, end := aggregateChartTimeRange(points, plot.Width, a.period, a.aggregateEmptyStart())
 	return drawTimeChart(canvas, rect, points, start, end, 10*time.Minute, 0, maxValue, unit, color)
 }
 
-func aggregateVisiblePointLimit(points []chartPoint, plotWidth int) int {
-	if plotWidth < 1 {
-		plotWidth = 1
+func (a *app) aggregateEmptyStart() time.Time {
+	if a.aggregateEmptyAt.IsZero() {
+		switch {
+		case !a.startedAt.IsZero():
+			a.aggregateEmptyAt = a.startedAt
+		case !a.historyViewEnd.IsZero():
+			a.aggregateEmptyAt = a.historyViewEnd
+		default:
+			a.aggregateEmptyAt = time.Now()
+		}
 	}
+	return a.aggregateEmptyAt
+}
+
+func visibleAggregatePoints(points []chartPoint, plotWidth int) []chartPoint {
+	visibleLimit := aggregateVisiblePointLimit(points, plotWidth)
+	if len(points) <= visibleLimit {
+		return points
+	}
+	return points[len(points)-visibleLimit:]
+}
+
+func aggregateVisiblePointLimit(points []chartPoint, plotWidth int) int {
+	return chartPointGroupCount(points) * aggregatePointCapacity(plotWidth, aggregateMinPixelsPerSample)
+}
+
+func aggregateChartTimeRange(points []chartPoint, plotWidth int, period time.Duration, emptyStart time.Time) (time.Time, time.Time) {
+	if period <= 0 {
+		period = time.Second
+	}
+	preferredPoints := aggregatePointCapacity(plotWidth, aggregatePreferredPixelsPerSample)
+	if emptyStart.IsZero() {
+		emptyStart = time.Unix(0, 0)
+	}
+	if len(points) == 0 {
+		return emptyStart, emptyStart.Add(period * time.Duration(max(1, preferredPoints-1)))
+	}
+
+	start := points[0].at
+	end := points[len(points)-1].at
+	if aggregateMaxPointsPerGroup(points) <= preferredPoints {
+		end = start.Add(period * time.Duration(max(1, preferredPoints-1)))
+		if points[len(points)-1].at.After(end) {
+			end = points[len(points)-1].at
+		}
+	}
+	if !end.After(start) {
+		end = start.Add(period)
+	}
+	return start, end
+}
+
+func aggregatePointCapacity(width, pixelsPerSample int) int {
+	if width < 1 {
+		width = 1
+	}
+	if pixelsPerSample < 1 {
+		pixelsPerSample = 1
+	}
+	return max(1, width/pixelsPerSample)
+}
+
+func chartPointGroupCount(points []chartPoint) int {
 	groups := map[int]struct{}{}
 	for _, p := range points {
 		groups[p.groupIndex] = struct{}{}
 	}
-	groupCount := max(1, len(groups))
-	return plotWidth * groupCount
+	return max(1, len(groups))
+}
+
+func aggregateMaxPointsPerGroup(points []chartPoint) int {
+	counts := map[int]int{}
+	maxCount := 0
+	for _, p := range points {
+		counts[p.groupIndex]++
+		maxCount = max(maxCount, counts[p.groupIndex])
+	}
+	return max(1, maxCount)
 }
 
 func drawTimeChart(canvas *walk.Canvas, rect walk.Rectangle, points []chartPoint, start, end time.Time, xGrid time.Duration, yMin, yMax float64, unit string, color walk.Color) error {
@@ -1927,6 +2017,7 @@ func drawTimeChart(canvas *walk.Canvas, rect walk.Rectangle, points []chartPoint
 	if len(points) == 0 {
 		return drawText(canvas, "No measurements yet", rect, walk.RGB(120, 130, 140), walk.TextCenter|walk.TextVCenter|walk.TextSingleLine)
 	}
+
 	byGroup := map[int][]chartPlotPoint{}
 	colors := map[int]walk.Color{}
 	for _, p := range points {
