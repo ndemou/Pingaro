@@ -208,6 +208,86 @@ func TestMigrateLegacyHistoryFileLeavesLegacyWhenHistoryExists(t *testing.T) {
 	}
 }
 
+func TestCreateAutosaveHistoryFileUsesTimestampName(t *testing.T) {
+	dir := t.TempDir()
+	startedAt := time.Date(2026, time.July, 9, 8, 52, 31, 900*int(time.Millisecond), time.Local)
+
+	path, err := createAutosaveHistoryFile(dir, startedAt, 1234)
+	if err != nil {
+		t.Fatalf("createAutosaveHistoryFile() error = %v", err)
+	}
+	if got, want := filepath.Base(path), "history-2026-07-09_08.52.31.json"; got != want {
+		t.Fatalf("autosave filename = %q, want %q", got, want)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("autosave file was not created: %v", err)
+	}
+}
+
+func TestCreateAutosaveHistoryFileAddsPidAndSuffixWhenTimestampExists(t *testing.T) {
+	dir := t.TempDir()
+	startedAt := time.Date(2026, time.July, 9, 8, 52, 31, 0, time.Local)
+	base := filepath.Join(dir, "history-2026-07-09_08.52.31.json")
+	if err := os.WriteFile(base, []byte("{}\n"), 0644); err != nil {
+		t.Fatalf("WriteFile base autosave: %v", err)
+	}
+
+	path, err := createAutosaveHistoryFile(dir, startedAt, 1234)
+	if err != nil {
+		t.Fatalf("createAutosaveHistoryFile() pid path error = %v", err)
+	}
+	if got, want := filepath.Base(path), "history-2026-07-09_08.52.31-pid1234.json"; got != want {
+		t.Fatalf("autosave filename = %q, want %q", got, want)
+	}
+
+	path, err = createAutosaveHistoryFile(dir, startedAt, 1234)
+	if err != nil {
+		t.Fatalf("createAutosaveHistoryFile() suffix path error = %v", err)
+	}
+	if got, want := filepath.Base(path), "history-2026-07-09_08.52.31-pid1234-2.json"; got != want {
+		t.Fatalf("autosave filename = %q, want %q", got, want)
+	}
+}
+
+func TestShouldFlushAutosaveHistoryRequiresTenSamples(t *testing.T) {
+	now := time.Date(2026, time.July, 9, 8, 52, 31, 0, time.Local)
+	a := &app{sessionPings: minAutosaveHistorySamples - 1, pendingSamples: []historySample{{}}}
+	if a.shouldFlushAutosaveHistory(now) {
+		t.Fatal("shouldFlushAutosaveHistory returned true before 10 samples")
+	}
+
+	a.sessionPings = minAutosaveHistorySamples
+	if !a.shouldFlushAutosaveHistory(now) {
+		t.Fatal("shouldFlushAutosaveHistory returned false at 10 samples")
+	}
+
+	a.pendingSamples = nil
+	if a.shouldFlushAutosaveHistory(now) {
+		t.Fatal("shouldFlushAutosaveHistory returned true without pending history")
+	}
+}
+
+func TestShouldFlushAutosaveHistoryUsesIntervalAfterFirstSave(t *testing.T) {
+	now := time.Date(2026, time.July, 9, 8, 52, 31, 0, time.Local)
+	a := &app{
+		sessionPings:    minAutosaveHistorySamples,
+		pendingSamples:  []historySample{{}},
+		autosavePath:    "history-2026-07-09_08.52.31.json",
+		lastHistorySave: now,
+	}
+	if a.shouldFlushAutosaveHistory(now.Add(autosaveHistoryInterval - time.Second)) {
+		t.Fatal("shouldFlushAutosaveHistory returned true before interval elapsed")
+	}
+	if !a.shouldFlushAutosaveHistory(now.Add(autosaveHistoryInterval)) {
+		t.Fatal("shouldFlushAutosaveHistory returned false when interval elapsed")
+	}
+
+	a.lastHistorySave = time.Time{}
+	if !a.shouldFlushAutosaveHistory(now) {
+		t.Fatal("shouldFlushAutosaveHistory returned false before first successful save")
+	}
+}
+
 func TestParseTargetsPreservesSpecialNames(t *testing.T) {
 	got := parseTargets("localhost, gateway; 1.1.1.1")
 	want := []string{"localhost", "gateway", "1.1.1.1"}

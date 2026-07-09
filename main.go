@@ -36,6 +36,11 @@ const (
 )
 
 const (
+	minAutosaveHistorySamples = 10
+	autosaveHistoryInterval   = 10 * time.Minute
+)
+
+const (
 	rttChartHeight       = 150
 	aggregateChartHeight = 145
 	chartHeaderHeight    = 18
@@ -220,6 +225,7 @@ type app struct {
 	colors            []walk.Color
 	settings          savedConfig
 	lastHistorySave   time.Time
+	autosavePath      string
 	historyViewEnd    time.Time
 	startedAt         time.Time
 	sessionPings      int
@@ -474,6 +480,10 @@ func legacyHistoryPath() string {
 	return appDataPath("pingaro-history.json")
 }
 
+func autosaveHistoryDir() string {
+	return filepath.Dir(defaultHistoryPath())
+}
+
 func activeDefaultHistoryPath() string {
 	path := defaultHistoryPath()
 	_ = migrateLegacyHistoryFile(path, legacyHistoryPath())
@@ -506,6 +516,44 @@ func migrateLegacyHistoryFile(path, legacyPath string) error {
 		return err
 	}
 	return os.Remove(legacyPath)
+}
+
+func createAutosaveHistoryFile(dir string, startedAt time.Time, pid int) (string, error) {
+	if startedAt.IsZero() {
+		startedAt = time.Now()
+	}
+	if pid <= 0 {
+		pid = os.Getpid()
+	}
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return "", err
+	}
+	stem := "history-" + startedAt.Format("2006-01-02_15.04.05")
+	for suffix := 0; ; suffix++ {
+		path := filepath.Join(dir, autosaveHistoryFilename(stem, pid, suffix))
+		file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+		if err == nil {
+			closeErr := file.Close()
+			if closeErr != nil {
+				return "", closeErr
+			}
+			return path, nil
+		}
+		if !errors.Is(err, os.ErrExist) {
+			return "", err
+		}
+	}
+}
+
+func autosaveHistoryFilename(stem string, pid, suffix int) string {
+	switch suffix {
+	case 0:
+		return stem + ".json"
+	case 1:
+		return fmt.Sprintf("%s-pid%d.json", stem, pid)
+	default:
+		return fmt.Sprintf("%s-pid%d-%d.json", stem, pid, suffix)
+	}
 }
 
 func appDataPath(name string) string {
@@ -654,7 +702,7 @@ func (a *app) run() error {
 	a.updateJitterChartVisibility()
 	a.MainWindow.Closing().Attach(func(canceled *bool, reason walk.CloseReason) {
 		a.saveInputs()
-		_ = a.appendPendingHistory(activeDefaultHistoryPath())
+		_ = a.flushAutosaveHistory()
 	})
 	a.start()
 	a.MainWindow.Run()
@@ -727,11 +775,12 @@ func (a *app) start() {
 	a.aggregates = nil
 	a.pendingSamples = nil
 	a.pendingAggregates = nil
+	a.autosavePath = ""
 	a.period = time.Duration(aggSeconds) * time.Second
 	a.historyViewEnd = time.Time{}
 	a.startedAt = time.Now()
 	a.sessionPings = 0
-	a.lastHistorySave = time.Now()
+	a.lastHistorySave = time.Time{}
 	a.setRunning(true)
 	a.updateCurrentLabel()
 	a.invalidateCharts()
@@ -743,6 +792,7 @@ func (a *app) stop() {
 		a.cancel()
 		a.cancel = nil
 	}
+	_ = a.flushAutosaveHistory()
 	a.setRunning(false)
 }
 
@@ -923,13 +973,63 @@ func (a *app) accept(ev sampleEvent) {
 	}
 
 	a.updateCurrentLabel()
-	if time.Since(a.lastHistorySave) >= 10*time.Minute {
-		a.saveInputs()
-		if err := a.appendPendingHistory(activeDefaultHistoryPath()); err == nil {
-			a.lastHistorySave = time.Now()
-		}
+	now := time.Now()
+	if flushed, err := a.maybeFlushAutosaveHistory(now); err == nil && flushed {
+		a.lastHistorySave = now
 	}
 	a.invalidateCharts()
+}
+
+func (a *app) shouldFlushAutosaveHistory(now time.Time) bool {
+	if a.sessionPings < minAutosaveHistorySamples {
+		return false
+	}
+	if len(a.pendingSamples) == 0 && len(a.pendingAggregates) == 0 {
+		return false
+	}
+	if a.autosavePath == "" {
+		return true
+	}
+	if a.lastHistorySave.IsZero() {
+		return true
+	}
+	return !now.Before(a.lastHistorySave.Add(autosaveHistoryInterval))
+}
+
+func (a *app) maybeFlushAutosaveHistory(now time.Time) (bool, error) {
+	if !a.shouldFlushAutosaveHistory(now) {
+		return false, nil
+	}
+	if err := a.flushAutosaveHistory(); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (a *app) flushAutosaveHistory() error {
+	if a.sessionPings < minAutosaveHistorySamples {
+		return nil
+	}
+	if len(a.pendingSamples) == 0 && len(a.pendingAggregates) == 0 {
+		return nil
+	}
+	path, err := a.ensureAutosaveHistoryPath()
+	if err != nil {
+		return err
+	}
+	return a.appendPendingHistory(path)
+}
+
+func (a *app) ensureAutosaveHistoryPath() (string, error) {
+	if a.autosavePath != "" {
+		return a.autosavePath, nil
+	}
+	path, err := createAutosaveHistoryFile(autosaveHistoryDir(), a.startedAt, os.Getpid())
+	if err != nil {
+		return "", err
+	}
+	a.autosavePath = path
+	return path, nil
 }
 
 func (a *app) saveHistoryDialog() {
@@ -974,22 +1074,33 @@ func (a *app) saveHistory(path string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err
 	}
-	defaultPath := activeDefaultHistoryPath()
-	if samePath(path, defaultPath) {
-		return a.appendPendingHistory(path)
+	if a.autosavePath != "" && samePath(path, a.autosavePath) {
+		return a.flushAutosaveHistory()
 	}
 
-	if records, err := readHistoryFile(defaultPath); err == nil {
-		if len(a.pendingSamples) > 0 || len(a.pendingAggregates) > 0 {
-			records = append(records, a.pendingHistorySnapshot())
-		}
-		return writeHistoryRecords(path, records)
-	} else if !errors.Is(err, os.ErrNotExist) {
+	records, err := a.historyRecordsForSave()
+	if err != nil {
 		return err
 	}
+	return writeHistoryRecords(path, records)
+}
 
-	h := a.historySnapshot(a.samples, a.aggregates)
-	return writeHistoryFile(path, h)
+func (a *app) historyRecordsForSave() ([]historyFile, error) {
+	if a.autosavePath != "" {
+		records, err := readHistoryFile(a.autosavePath)
+		if err == nil {
+			if len(a.pendingSamples) > 0 || len(a.pendingAggregates) > 0 {
+				records = append(records, a.pendingHistorySnapshot())
+			}
+			if len(records) > 0 {
+				return records, nil
+			}
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
+	}
+
+	return []historyFile{a.historySnapshot(a.samples, a.aggregates)}, nil
 }
 
 func (a *app) appendPendingHistory(path string) error {
@@ -1138,6 +1249,7 @@ func (a *app) loadHistory(path string) error {
 	a.aggregates = nil
 	a.pendingSamples = nil
 	a.pendingAggregates = nil
+	a.autosavePath = ""
 	a.sessionPings = 0
 	a.startedAt = time.Time{}
 	a.historyViewEnd = time.Time{}

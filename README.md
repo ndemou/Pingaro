@@ -7,7 +7,7 @@ any quality issues it detects. You can leave it running in the background and re
 
 <img width="1211" height="948" alt="image" src="https://github.com/user-attachments/assets/1ab3a613-a6ea-463e-a2a6-641fc815b2ec" />
 
-Settings are saved in `%AppData%\Pingaro\settings.json`. History is saved in `%AppData%\Pingaro\history.json`. Older versions used `%AppData%\Pingaro\pingaro.json` for settings and `%AppData%\Pingaro\pingaro-history.json` for history; Pingaro migrates those legacy files to the clearer names when needed.
+Settings are saved in `%AppData%\Pingaro\settings.json`. Automatic capture history is saved under `%AppData%\Pingaro` as timestamped files such as `history-2026-07-09_08.52.31.json`. Manual history Save/Load defaults to `history.json`. Older versions used `%AppData%\Pingaro\pingaro.json` for settings and `%AppData%\Pingaro\pingaro-history.json` for history; Pingaro migrates those legacy files to the clearer names when needed.
 
 ## Download From GitHub
 
@@ -72,4 +72,4 @@ The `-H=windowsgui` linker flag is required. Without it, Windows starts the app 
 .\pingaro.exe
 ```
 
-Pingaro stores settings and saved history under `%AppData%\Pingaro`.
+Pingaro stores settings, manual history exports, and automatic timestamped history files under `%AppData%\Pingaro`.

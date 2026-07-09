@@ -639,8 +639,18 @@
           <td>The filename should describe the file's purpose. <code>settings.json</code> is clearer than the old <code>pingaro.json</code> name inside a Pingaro-specific folder.</td>
         </tr>
         <tr>
-          <td>Saved history</td>
-          <td>History is stored in <code>%AppData%\Pingaro\history.json</code>.</td>
+          <td>Automatic history</td>
+          <td>Each capture session that reaches at least 10 samples is autosaved under <code>%AppData%\Pingaro</code> using <code>history-YYYY-MM-DD_HH.mm.ss.json</code>.</td>
+          <td>Separate session files make it easier to review a specific run without one rolling file growing forever. The timestamp uses seconds because it is readable and precise enough for normal starts.</td>
+        </tr>
+        <tr>
+          <td>Autosave name collisions</td>
+          <td>If the timestamped filename already exists, Pingaro writes <code>history-YYYY-MM-DD_HH.mm.ss-pid1234.json</code>, then adds a numeric suffix if needed.</td>
+          <td>This avoids overwriting useful same-second sessions and keeps simultaneous app instances from writing to the same autosave file.</td>
+        </tr>
+        <tr>
+          <td>Manual history</td>
+          <td>Manual Save/Load defaults to <code>%AppData%\Pingaro\history.json</code>.</td>
           <td>The filename should describe the file's purpose. <code>history.json</code> is clearer than the old <code>pingaro-history.json</code> name inside a Pingaro-specific folder.</td>
         </tr>
         <tr>
@@ -665,6 +675,7 @@
       <h2>History And Compatibility</h2>
       <ul>
         <li>History files use JSON records with a version field.</li>
+        <li>Automatic history files are per capture session and are not written until the session has at least 10 samples.</li>
         <li>Saved samples and aggregate points can be loaded back into the UI.</li>
         <li>Legacy single-use configuration is normalized into the newer multi-use list.</li>
         <li>Legacy <code>pingaro.json</code> settings are migrated to <code>settings.json</code> and cleaned up.</li>
@@ -728,7 +739,9 @@
         <div><strong>Settings filename</strong></div>
         <div>Renamed the saved settings file from <code>pingaro.json</code> to <code>settings.json</code>, with one-time migration and cleanup for the legacy file.</div>
         <div><strong>User-visible naming pass</strong></div>
-        <div>Renamed history storage to <code>history.json</code>, changed visible labels to Use profiles, Measurements/sec, Aggregation window (sec), and No measurements yet, and switched profile names to consistent title case.</div>
+        <div>Renamed the manual history default to <code>history.json</code>, changed visible labels to Use profiles, Measurements/sec, Aggregation window (sec), and No measurements yet, and switched profile names to consistent title case.</div>
+        <div><strong>Session autosave history</strong></div>
+        <div>Changed automatic history persistence from one rolling <code>history.json</code> file to timestamped per-session files, with PID and numeric suffixes for same-second collisions.</div>
       </div>
     </section>
   </main>
