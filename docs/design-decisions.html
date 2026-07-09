@@ -433,6 +433,11 @@
           <td><code>assets/pingaro.ico</code> embedded through <code>rsrc.syso</code></td>
           <td>The exe file icon and the top-left GUI window icon should both show the Pingaro icon.</td>
         </tr>
+        <tr>
+          <td>User-visible names</td>
+          <td>Names for files, controls, metrics, releases, and other visible concepts should describe what they are used for.</td>
+          <td>Good naming is part of the user experience. A misleading or overly generic name creates avoidable confusion even when the underlying feature works.</td>
+        </tr>
       </table>
     </section>
 
@@ -689,8 +694,13 @@
         </tr>
         <tr>
           <td>Saved config</td>
-          <td>Settings are stored under <code>%AppData%\Pingaro</code> and reused on next launch.</td>
-          <td>Most users repeatedly monitor the same connection and should not need to re-enter targets every time.</td>
+          <td>Settings are stored in <code>%AppData%\Pingaro\settings.json</code> and reused on next launch.</td>
+          <td>The filename should describe the file's purpose. <code>settings.json</code> is clearer than the old <code>pingaro.json</code> name inside a Pingaro-specific folder.</td>
+        </tr>
+        <tr>
+          <td>Legacy config cleanup</td>
+          <td>If <code>settings.json</code> is missing but legacy <code>pingaro.json</code> exists, Pingaro reads it, writes <code>settings.json</code>, then deletes <code>pingaro.json</code> after the write succeeds.</td>
+          <td>Users keep their settings during the rename, and stale duplicate state is removed immediately.</td>
         </tr>
       </table>
     </section>
@@ -727,6 +737,7 @@
         <li>History files use JSON records with a version field.</li>
         <li>Saved samples and aggregate points can be loaded back into the UI.</li>
         <li>Legacy single-use configuration is normalized into the newer multi-use list.</li>
+        <li>Legacy <code>pingaro.json</code> settings are migrated to <code>settings.json</code> and cleaned up.</li>
         <li>The old "low latency gaming" profile name is normalized to "Superhuman Gaming".</li>
         <li>Loaded history can apply its saved config when present.</li>
       </ul>
@@ -778,6 +789,8 @@
         <div>Added special target names: <code>localhost</code> resolves to <code>127.0.0.1</code>, and <code>gateway</code> resolves to the current default gateway IP at runtime.</div>
         <div><strong>Decision log policy</strong></div>
         <div>Made this design-decision document an explicitly maintained artifact for future AI-agent changes.</div>
+        <div><strong>Settings filename</strong></div>
+        <div>Renamed the saved settings file from <code>pingaro.json</code> to <code>settings.json</code>, with one-time migration and cleanup for the legacy file.</div>
       </div>
     </section>
   </main>

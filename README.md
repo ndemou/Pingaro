@@ -7,6 +7,8 @@ any quality issues it detects. You can leave it running in the background and re
 
 <img width="1211" height="948" alt="image" src="https://github.com/user-attachments/assets/1ab3a613-a6ea-463e-a2a6-641fc815b2ec" />
 
+Settings are saved in `%AppData%\Pingaro\settings.json`. Older versions used `%AppData%\Pingaro\pingaro.json`; Pingaro migrates that legacy file to `settings.json` and deletes the old file after a successful migration.
+
 ## Download From GitHub
 
 1. Open the Pingaro releases page: <https://github.com/ndemou/Pingaro/releases>

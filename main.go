@@ -359,21 +359,47 @@ func defaultGroupColors() []walk.Color {
 }
 
 func loadConfig() savedConfig {
-	cfg := savedConfig{PPS: 1, AggregationSeconds: 120, UseTypes: defaultUseTypes()}
-	path := configPath()
-	if data, err := os.ReadFile(path); err == nil {
-		if err := json.Unmarshal(data, &cfg); err == nil {
-			cfg.PPS = clampInt(cfg.PPS, 1, 20)
-			cfg.AggregationSeconds = clampInt(cfg.AggregationSeconds, 3, 3600)
-			cfg.UseTypes = normalizeUseTypes(cfg.UseTypes, cfg.UseType)
-			cfg.UseType = ""
-			cfg.Groups = normalizeSavedGroups(cfg.Groups)
-			if len(cfg.Groups) > 0 {
-				return cfg
-			}
+	return loadConfigFromPaths(configPath(), legacyConfigPath())
+}
+
+func loadConfigFromPaths(path, legacyPath string) savedConfig {
+	if cfg, ok := readSavedConfig(path); ok && len(cfg.Groups) > 0 {
+		return cfg
+	}
+	if cfg, ok := readSavedConfig(legacyPath); ok {
+		if err := writeConfigFile(path, cfg); err == nil {
+			_ = os.Remove(legacyPath)
+		}
+		if len(cfg.Groups) > 0 {
+			return cfg
 		}
 	}
 	return defaultConfig()
+}
+
+func readSavedConfig(path string) (savedConfig, bool) {
+	cfg := baseConfig()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return cfg, false
+	}
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return cfg, false
+	}
+	return normalizeLoadedConfig(cfg), true
+}
+
+func normalizeLoadedConfig(cfg savedConfig) savedConfig {
+	cfg.PPS = clampInt(cfg.PPS, 1, 20)
+	cfg.AggregationSeconds = clampInt(cfg.AggregationSeconds, 3, 3600)
+	cfg.UseTypes = normalizeUseTypes(cfg.UseTypes, cfg.UseType)
+	cfg.UseType = ""
+	cfg.Groups = normalizeSavedGroups(cfg.Groups)
+	return cfg
+}
+
+func baseConfig() savedConfig {
+	return savedConfig{PPS: 1, AggregationSeconds: 120, UseTypes: defaultUseTypes()}
 }
 
 func defaultConfig() savedConfig {
@@ -413,31 +439,38 @@ func normalizeSavedGroups(groups []savedGroup) []savedGroup {
 }
 
 func saveConfig(cfg savedConfig) {
-	path := configPath()
+	_ = writeConfigFile(configPath(), cfg)
+}
+
+func writeConfigFile(path string, cfg savedConfig) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return
+		return err
 	}
 	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
-		return
+		return err
 	}
-	_ = os.WriteFile(path, data, 0644)
+	return os.WriteFile(path, data, 0644)
 }
 
 func configPath() string {
-	dir, err := os.UserConfigDir()
-	if err != nil || dir == "" {
-		dir = "."
-	}
-	return filepath.Join(dir, "Pingaro", "pingaro.json")
+	return appDataPath("settings.json")
+}
+
+func legacyConfigPath() string {
+	return appDataPath("pingaro.json")
 }
 
 func defaultHistoryPath() string {
+	return appDataPath("pingaro-history.json")
+}
+
+func appDataPath(name string) string {
 	dir, err := os.UserConfigDir()
 	if err != nil || dir == "" {
 		dir = "."
 	}
-	return filepath.Join(dir, "Pingaro", "pingaro-history.json")
+	return filepath.Join(dir, "Pingaro", name)
 }
 
 func defaultGateway() string {

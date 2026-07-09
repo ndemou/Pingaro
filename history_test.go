@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -99,6 +101,60 @@ func TestDefaultGroupsPutGatewayBeforeInternet(t *testing.T) {
 	}
 	if got[1].Name != "Internet" || got[1].Targets != defaultInternetTargets {
 		t.Fatalf("group 2 = %+v, want Internet defaults", got[1])
+	}
+}
+
+func TestLoadConfigMigratesLegacyPingaroJSON(t *testing.T) {
+	dir := t.TempDir()
+	settingsPath := filepath.Join(dir, "settings.json")
+	legacyPath := filepath.Join(dir, "pingaro.json")
+	legacy := []byte(`{
+  "groups": [{"name": "Gateway", "targets": "gateway"}],
+  "pps": 2,
+  "aggregationSeconds": 90,
+  "useTypes": ["audio calls"]
+}`)
+	if err := os.WriteFile(legacyPath, legacy, 0644); err != nil {
+		t.Fatalf("WriteFile legacy config: %v", err)
+	}
+
+	got := loadConfigFromPaths(settingsPath, legacyPath)
+	if got.PPS != 2 || got.AggregationSeconds != 90 {
+		t.Fatalf("loaded config timing = pps %d agg %d, want pps 2 agg 90", got.PPS, got.AggregationSeconds)
+	}
+	if len(got.Groups) != 1 || got.Groups[0].Name != "Gateway" || got.Groups[0].Targets != "gateway" {
+		t.Fatalf("loaded groups = %+v, want Gateway gateway", got.Groups)
+	}
+	if len(got.UseTypes) != 1 || got.UseTypes[0] != "audio calls" {
+		t.Fatalf("loaded use types = %v, want [audio calls]", got.UseTypes)
+	}
+	if _, err := os.Stat(settingsPath); err != nil {
+		t.Fatalf("settings.json was not written: %v", err)
+	}
+	if _, err := os.Stat(legacyPath); !os.IsNotExist(err) {
+		t.Fatalf("legacy pingaro.json still exists or stat failed unexpectedly: %v", err)
+	}
+}
+
+func TestLoadConfigPrefersSettingsJSONOverLegacy(t *testing.T) {
+	dir := t.TempDir()
+	settingsPath := filepath.Join(dir, "settings.json")
+	legacyPath := filepath.Join(dir, "pingaro.json")
+	settings := []byte(`{"groups":[{"name":"Settings","targets":"localhost"}],"pps":3,"aggregationSeconds":120,"useTypes":["video calls"]}`)
+	legacy := []byte(`{"groups":[{"name":"Legacy","targets":"gateway"}],"pps":1,"aggregationSeconds":60,"useType":"audio calls"}`)
+	if err := os.WriteFile(settingsPath, settings, 0644); err != nil {
+		t.Fatalf("WriteFile settings config: %v", err)
+	}
+	if err := os.WriteFile(legacyPath, legacy, 0644); err != nil {
+		t.Fatalf("WriteFile legacy config: %v", err)
+	}
+
+	got := loadConfigFromPaths(settingsPath, legacyPath)
+	if len(got.Groups) != 1 || got.Groups[0].Name != "Settings" || got.Groups[0].Targets != "localhost" {
+		t.Fatalf("loaded groups = %+v, want Settings localhost", got.Groups)
+	}
+	if _, err := os.Stat(legacyPath); err != nil {
+		t.Fatalf("legacy config should be left alone when settings.json exists: %v", err)
 	}
 }
 
