@@ -377,6 +377,7 @@
       <a href="#defaults">Defaults</a>
       <a href="#build">Build</a>
       <a href="#history">History</a>
+      <a href="#maintenance">Maintenance</a>
       <a href="#timeline">Timeline</a>
     </div>
   </nav>
@@ -731,6 +732,29 @@
       </ul>
     </section>
 
+    <section id="maintenance">
+      <h2>Decision Log Maintenance</h2>
+      <p>This document is part of the product, not a one-time note. It should change whenever the product's intentional behavior or constraints change.</p>
+      <table>
+        <tr>
+          <th>Rule</th>
+          <th>Why It Exists</th>
+        </tr>
+        <tr>
+          <td>AI agents must update this file when changing product scope, naming, UX, target behavior, metrics, thresholds, colors, defaults, persistence, build/release behavior, or other design choices.</td>
+          <td>The repository should preserve the reasoning behind choices, not only the implementation.</td>
+        </tr>
+        <tr>
+          <td>If a code change does not require a decision-log update, the agent should say so in its final response.</td>
+          <td>This makes the check explicit and prevents silent drift.</td>
+        </tr>
+        <tr>
+          <td>Updates should be made in the same change as the behavior they document.</td>
+          <td>Keeping documentation and implementation together makes review and future maintenance easier.</td>
+        </tr>
+      </table>
+    </section>
+
     <section id="timeline">
       <h2>Development Timeline</h2>
       <div class="timeline">
@@ -750,6 +774,10 @@
         <div>Embedded the app icon, set the GUI window icon, and published GitHub releases with the built exe.</div>
         <div><strong>Palette update</strong></div>
         <div>Updated severity colors and group line colors, including a fix so black is treated as a valid graph line color.</div>
+        <div><strong>Symbolic targets</strong></div>
+        <div>Added special target names: <code>localhost</code> resolves to <code>127.0.0.1</code>, and <code>gateway</code> resolves to the current default gateway IP at runtime.</div>
+        <div><strong>Decision log policy</strong></div>
+        <div>Made this design-decision document an explicitly maintained artifact for future AI-agent changes.</div>
       </div>
     </section>
   </main>
