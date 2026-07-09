@@ -577,6 +577,7 @@
         <li>The total ping count, overall status, and build metadata sit at the bottom-left of the window so developers can identify the exact running build without opening external release notes.</li>
         <li>The right pane contains the live latency chart and aggregate charts.</li>
         <li>Chart headers, last values, plot area, axis labels, and warning regions are custom-painted inside Walk <code>CustomWidget</code> controls.</li>
+        <li>The live latency chart uses 8 pixels per sample slot: a 4-pixel group-colored bar centered between 2-pixel severity highlight margins. Multi-group samples sort RTT values low-to-high and draw each higher group's delta above the lower value; packet loss is shown as a 6x6 group-colored cross near zero, staggered upward by 8 pixels per group.</li>
         <li>Line charts project off-scale values to their true position and clip line segments at the plot edge instead of clamping the point to the maximum Y-axis value.</li>
         <li>X-axis labels use a shared time-tick selector with sensible time steps, second-level labels, at least three labels when space allows, and a density cap of roughly half the plot width.</li>
         <li>When jitter is hidden, its vertical space is redistributed to visible charts.</li>
@@ -753,6 +754,8 @@
         <div>Changed adaptive chart sizing so it redistributes the current chart area without forcing the top-level window to grow vertically.</div>
         <div><strong>Aggregate graph density</strong></div>
         <div>Added a 6-pixel minimum aggregate sample spacing, a 24-pixel preferred sparse-data spacing, fixed empty aggregate ranges, and monitor-width-based aggregate retention.</div>
+        <div><strong>Realtime bar chart experiment</strong></div>
+        <div>Changed the live latency graph from line series to 8-pixel sample slots with 4-pixel bars, 2-pixel severity highlight margins, low-to-high multi-group delta bars, and group-colored loss crosses.</div>
       </div>
     </section>
   </main>

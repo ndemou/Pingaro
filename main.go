@@ -61,6 +61,11 @@ const (
 const (
 	aggregateMinPixelsPerSample       = 6
 	aggregatePreferredPixelsPerSample = aggregateMinPixelsPerSample * 4
+	realtimeBarWidth                  = 4
+	realtimeBarHighlightPadding       = 2
+	realtimePixelsPerSample           = realtimeBarWidth + 2*realtimeBarHighlightPadding
+	realtimeLossMarkerSize            = 6
+	realtimeLossMarkerYOffset         = 8
 )
 
 var (
@@ -172,6 +177,17 @@ type chartPoint struct {
 type chartPlotPoint struct {
 	x float64
 	y float64
+}
+
+type realtimeBarSample struct {
+	at     time.Time
+	points []chartPoint
+}
+
+type realtimeBarSegment struct {
+	color     walk.Color
+	fromValue float64
+	toValue   float64
 }
 
 type timeAxisTick struct {
@@ -1823,12 +1839,16 @@ func (a *app) rttPoints() ([]chartPoint, time.Time, float64) {
 }
 
 func (a *app) paintRTT(canvas *walk.Canvas, bounds walk.Rectangle) error {
-	points, now, maxValue := a.rttPoints()
+	points, now, _ := a.rttPoints()
 	headerRect, chartRect := splitChartBounds(a.rttChart.ClientBoundsPixels())
 	if err := drawChartHeader(canvas, headerRect, "Latency (live)", lastItems(points, "ms", lostRTT, true)); err != nil {
 		return err
 	}
-	return drawTimeChart(canvas, chartRect, points, now.Add(-120*time.Second), now, 20*time.Second, 0, maxValue, "ms", walk.RGB(40, 150, 135))
+	plot := plotBounds(chartRect)
+	samples := visibleRealtimeBarSamples(points, plot.Width)
+	maxValue := bucketedYMax(realtimeBarSamplePoints(samples), rttYMaxBuckets, lostRTT)
+	start, end := realtimeBarTimeRange(samples, now)
+	return drawRealtimeBarChart(canvas, chartRect, samples, start, end, 20*time.Second, 0, maxValue, "ms")
 }
 
 func (a *app) p95Points() ([]chartPoint, float64) {
@@ -1972,6 +1992,270 @@ func aggregateMaxPointsPerGroup(points []chartPoint) int {
 		maxCount = max(maxCount, counts[p.groupIndex])
 	}
 	return max(1, maxCount)
+}
+
+func visibleRealtimeBarSamples(points []chartPoint, plotWidth int) []realtimeBarSample {
+	samples := realtimeBarSamples(points)
+	visibleLimit := realtimeSampleCapacity(plotWidth)
+	if len(samples) <= visibleLimit {
+		return samples
+	}
+	return samples[len(samples)-visibleLimit:]
+}
+
+func realtimeBarSamples(points []chartPoint) []realtimeBarSample {
+	samples := make([]realtimeBarSample, 0, len(points))
+	for _, p := range points {
+		if len(samples) == 0 || !p.at.Equal(samples[len(samples)-1].at) {
+			samples = append(samples, realtimeBarSample{at: p.at})
+		}
+		samples[len(samples)-1].points = append(samples[len(samples)-1].points, p)
+	}
+	return samples
+}
+
+func realtimeSampleCapacity(plotWidth int) int {
+	return aggregatePointCapacity(plotWidth, realtimePixelsPerSample)
+}
+
+func realtimeBarSamplePoints(samples []realtimeBarSample) []chartPoint {
+	count := 0
+	for _, sample := range samples {
+		count += len(sample.points)
+	}
+	points := make([]chartPoint, 0, count)
+	for _, sample := range samples {
+		points = append(points, sample.points...)
+	}
+	return points
+}
+
+func realtimeBarTimeRange(samples []realtimeBarSample, fallbackEnd time.Time) (time.Time, time.Time) {
+	if fallbackEnd.IsZero() {
+		fallbackEnd = time.Now()
+	}
+	if len(samples) == 0 {
+		return fallbackEnd.Add(-120 * time.Second), fallbackEnd
+	}
+	start := samples[0].at
+	end := samples[len(samples)-1].at
+	if !end.After(start) {
+		end = start.Add(time.Second)
+	}
+	return start, end
+}
+
+func realtimeBarSampleSeverity(sample realtimeBarSample) int {
+	severity := 0
+	for _, p := range sample.points {
+		severity = max(severity, p.severity)
+	}
+	return severity
+}
+
+func realtimeBarSegments(points []chartPoint, yMin float64, special float64) []realtimeBarSegment {
+	usable := make([]chartPoint, 0, len(points))
+	for _, p := range points {
+		if p.value == special {
+			continue
+		}
+		usable = append(usable, p)
+	}
+	sort.SliceStable(usable, func(i, j int) bool {
+		if usable[i].value == usable[j].value {
+			return usable[i].groupIndex < usable[j].groupIndex
+		}
+		return usable[i].value < usable[j].value
+	})
+
+	segments := make([]realtimeBarSegment, 0, len(usable))
+	previous := yMin
+	for _, p := range usable {
+		if p.value <= previous {
+			continue
+		}
+		segments = append(segments, realtimeBarSegment{color: p.color, fromValue: previous, toValue: p.value})
+		previous = p.value
+	}
+	return segments
+}
+
+func drawRealtimeBarChart(canvas *walk.Canvas, rect walk.Rectangle, samples []realtimeBarSample, start, end time.Time, xGrid time.Duration, yMin, yMax float64, unit string) error {
+	if err := drawPanel(canvas, rect); err != nil {
+		return err
+	}
+	plot := plotBounds(rect)
+	if !end.After(start) {
+		end = start.Add(time.Second)
+	}
+	if yMax <= yMin {
+		yMax = yMin + 1
+	}
+	if err := drawRealtimeBarHighlights(canvas, plot, samples); err != nil {
+		return err
+	}
+	gridPen, err := walk.NewCosmeticPen(walk.PenSolid, walk.RGB(215, 220, 225))
+	if err != nil {
+		return err
+	}
+	defer gridPen.Dispose()
+	yDivisions := yGridDivisions(rect.Height)
+	for i := 0; i <= yDivisions; i++ {
+		value := yMin + (yMax-yMin)*float64(i)/float64(yDivisions)
+		y := plot.Y + plot.Height - int(float64(plot.Height)*float64(i)/float64(yDivisions))
+		if err := canvas.DrawLinePixels(gridPen, walk.Point{X: plot.X, Y: y}, walk.Point{X: plot.X + plot.Width, Y: y}); err != nil {
+			return err
+		}
+		label := formatAxis(value) + " " + unit
+		_ = drawText(canvas, label, walk.Rectangle{X: rect.X + 4, Y: y - 9, Width: plot.X - rect.X - 8, Height: 18}, walk.RGB(80, 90, 100), walk.TextRight|walk.TextVCenter|walk.TextSingleLine)
+	}
+	if xGrid > 0 {
+		duration := end.Sub(start)
+		for _, tick := range xAxisTicks(start, end, plot.Width) {
+			t := tick.at
+			x := plot.X + int(t.Sub(start).Seconds()/duration.Seconds()*float64(plot.Width))
+			if err := canvas.DrawLinePixels(gridPen, walk.Point{X: x, Y: plot.Y}, walk.Point{X: x, Y: plot.Y + plot.Height}); err != nil {
+				return err
+			}
+			_ = drawText(canvas, tick.label, walk.Rectangle{X: x - xAxisLabelWidth/2, Y: plot.Y + plot.Height + 3, Width: xAxisLabelWidth, Height: 18}, walk.RGB(80, 90, 100), walk.TextCenter|walk.TextVCenter|walk.TextSingleLine)
+		}
+	}
+	if len(samples) == 0 {
+		return drawText(canvas, "No measurements yet", rect, walk.RGB(120, 130, 140), walk.TextCenter|walk.TextVCenter|walk.TextSingleLine)
+	}
+	return drawRealtimeBars(canvas, plot, samples, yMin, yMax)
+}
+
+func drawRealtimeBarHighlights(canvas *walk.Canvas, plot walk.Rectangle, samples []realtimeBarSample) error {
+	brushes := map[walk.Color]*walk.SolidColorBrush{}
+	defer disposeSolidBrushes(brushes)
+	for i, sample := range samples {
+		severity := realtimeBarSampleSeverity(sample)
+		if severity == 0 {
+			continue
+		}
+		brush, err := cachedSolidBrush(brushes, severityColor(severity))
+		if err != nil {
+			return err
+		}
+		slot := walk.Rectangle{X: realtimeBarSlotLeft(plot, i, len(samples)), Y: plot.Y, Width: realtimePixelsPerSample, Height: plot.Height}
+		if err := fillClippedRectanglePixels(canvas, plot, slot, brush); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func drawRealtimeBars(canvas *walk.Canvas, plot walk.Rectangle, samples []realtimeBarSample, yMin, yMax float64) error {
+	brushes := map[walk.Color]*walk.SolidColorBrush{}
+	defer disposeSolidBrushes(brushes)
+	for i, sample := range samples {
+		barX := realtimeBarSlotLeft(plot, i, len(samples)) + realtimeBarHighlightPadding
+		for _, segment := range realtimeBarSegments(sample.points, yMin, lostRTT) {
+			brush, err := cachedSolidBrush(brushes, segment.color)
+			if err != nil {
+				return err
+			}
+			yTop := chartValueY(plot, segment.toValue, yMin, yMax)
+			yBottom := chartValueY(plot, segment.fromValue, yMin, yMax)
+			top := int(math.Round(yTop))
+			bottom := int(math.Round(yBottom))
+			if bottom <= top {
+				bottom = top + 1
+			}
+			rect := walk.Rectangle{X: barX, Y: top, Width: realtimeBarWidth, Height: bottom - top}
+			if err := fillClippedRectanglePixels(canvas, plot, rect, brush); err != nil {
+				return err
+			}
+		}
+		for _, p := range sample.points {
+			if p.value != lostRTT {
+				continue
+			}
+			brush, err := cachedSolidBrush(brushes, p.color)
+			if err != nil {
+				return err
+			}
+			if err := drawRealtimeLossMarker(canvas, plot, realtimeLossMarkerRect(plot, barX, p.groupIndex, yMin, yMax), brush); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func realtimeLossMarkerRect(plot walk.Rectangle, barX int, groupIndex int, yMin, yMax float64) walk.Rectangle {
+	centerX := barX + realtimeBarWidth/2
+	baseline := int(math.Round(chartValueY(plot, yMin, yMin, yMax)))
+	bottom := baseline - max(0, groupIndex)*realtimeLossMarkerYOffset
+	return walk.Rectangle{
+		X:      centerX - realtimeLossMarkerSize/2,
+		Y:      bottom - realtimeLossMarkerSize,
+		Width:  realtimeLossMarkerSize,
+		Height: realtimeLossMarkerSize,
+	}
+}
+
+func drawRealtimeLossMarker(canvas *walk.Canvas, plot walk.Rectangle, rect walk.Rectangle, brush walk.Brush) error {
+	for i := 0; i < realtimeLossMarkerSize; i++ {
+		if err := fillClippedRectanglePixels(canvas, plot, walk.Rectangle{X: rect.X + i, Y: rect.Y + i, Width: 1, Height: 1}, brush); err != nil {
+			return err
+		}
+		if err := fillClippedRectanglePixels(canvas, plot, walk.Rectangle{X: rect.X + realtimeLossMarkerSize - 1 - i, Y: rect.Y + i, Width: 1, Height: 1}, brush); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func realtimeBarSlotLeft(plot walk.Rectangle, sampleIndex, sampleCount int) int {
+	occupiedWidth := max(1, sampleCount) * realtimePixelsPerSample
+	left := plot.X
+	if occupiedWidth < plot.Width {
+		left += plot.Width - occupiedWidth
+	}
+	return left + sampleIndex*realtimePixelsPerSample
+}
+
+func chartValueY(plot walk.Rectangle, value, yMin, yMax float64) float64 {
+	return float64(plot.Y+plot.Height) - (value-yMin)/(yMax-yMin)*float64(plot.Height)
+}
+
+func cachedSolidBrush(brushes map[walk.Color]*walk.SolidColorBrush, color walk.Color) (*walk.SolidColorBrush, error) {
+	if brush := brushes[color]; brush != nil {
+		return brush, nil
+	}
+	brush, err := walk.NewSolidColorBrush(color)
+	if err != nil {
+		return nil, err
+	}
+	brushes[color] = brush
+	return brush, nil
+}
+
+func disposeSolidBrushes(brushes map[walk.Color]*walk.SolidColorBrush) {
+	for _, brush := range brushes {
+		brush.Dispose()
+	}
+}
+
+func fillClippedRectanglePixels(canvas *walk.Canvas, clip walk.Rectangle, rect walk.Rectangle, brush walk.Brush) error {
+	clipped, ok := clippedRectanglePixels(rect, clip)
+	if !ok {
+		return nil
+	}
+	return canvas.FillRectanglePixels(brush, clipped)
+}
+
+func clippedRectanglePixels(a, b walk.Rectangle) (walk.Rectangle, bool) {
+	left := max(a.X, b.X)
+	top := max(a.Y, b.Y)
+	right := min(a.X+a.Width, b.X+b.Width)
+	bottom := min(a.Y+a.Height, b.Y+b.Height)
+	if right <= left || bottom <= top {
+		return walk.Rectangle{}, false
+	}
+	return walk.Rectangle{X: left, Y: top, Width: right - left, Height: bottom - top}, true
 }
 
 func drawTimeChart(canvas *walk.Canvas, rect walk.Rectangle, points []chartPoint, start, end time.Time, xGrid time.Duration, yMin, yMax float64, unit string, color walk.Color) error {
