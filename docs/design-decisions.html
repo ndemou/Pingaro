@@ -64,9 +64,6 @@
     nav {
       background: #fff;
       border-bottom: 1px solid var(--line);
-      position: sticky;
-      top: 0;
-      z-index: 2;
     }
 
     nav .wrap {
@@ -132,40 +129,8 @@
       max-width: 930px;
     }
 
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 14px;
-    }
-
-    .decision {
-      border: 1px solid var(--line);
-      border-left: 5px solid var(--accent);
-      border-radius: 7px;
-      padding: 14px;
-      background: #fbfcfe;
-    }
-
-    .decision h3 {
-      margin-top: 0;
-    }
-
-    .decision p:last-child,
     li:last-child {
       margin-bottom: 0;
-    }
-
-    .status {
-      display: inline-block;
-      background: #e7f7ec;
-      color: #145326;
-      border: 1px solid #bfe8c9;
-      border-radius: 999px;
-      padding: 2px 8px;
-      font-size: 12px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
     }
 
     table {
@@ -195,6 +160,10 @@
     ul {
       margin: 0 0 12px 20px;
       padding: 0;
+    }
+
+    li {
+      margin: 0 0 7px;
     }
 
     .swatches {
@@ -386,23 +355,11 @@
     <section id="purpose">
       <h2>Product Purpose</h2>
       <p class="lede">Pingaro exists to answer a practical question: is the connection good enough for what the user is trying to do, and when did it stop being good enough?</p>
-      <div class="grid">
-        <div class="decision">
-          <h3>Serve experts and non-experts</h3>
-          <p><span class="status">Accepted</span></p>
-          <p>Network experts get direct visualizations of response time, packet loss, p95 latency, and jitter. Non-experts can choose one or more use profiles and let Pingaro classify issues for them.</p>
-        </div>
-        <div class="decision">
-          <h3>Focus on quality over time</h3>
-          <p><span class="status">Accepted</span></p>
-          <p>The tool is not a one-shot speed test. It is meant to run while the user works, plays, or calls, then summarize what happened over time.</p>
-        </div>
-        <div class="decision">
-          <h3>Plain language first</h3>
-          <p><span class="status">Accepted</span></p>
-          <p>The UI should not force users to interpret every chart. The overall status label uses direct sentences such as "So far, the connection looks good."</p>
-        </div>
-      </div>
+      <ul>
+        <li><strong>Serve experts and non-experts:</strong> network experts get direct visualizations of response time, packet loss, p95 latency, and jitter. Non-experts can choose one or more use profiles and let Pingaro classify issues for them.</li>
+        <li><strong>Focus on quality over time:</strong> the tool is not a one-shot speed test. It is meant to run while the user works, plays, or calls, then summarize what happened over time.</li>
+        <li><strong>Plain language first:</strong> the UI should not force users to interpret every chart. The overall status label uses direct sentences such as "So far, the connection looks good."</li>
+      </ul>
     </section>
 
     <section id="identity">
@@ -443,28 +400,12 @@
 
     <section id="scope">
       <h2>Application Scope</h2>
-      <div class="grid">
-        <div class="decision">
-          <h3>GUI only</h3>
-          <p><span class="status">Accepted</span></p>
-          <p>The TUI version was removed. Pingaro now has only the graphical Windows application.</p>
-        </div>
-        <div class="decision">
-          <h3>No terminal dependency</h3>
-          <p><span class="status">Accepted</span></p>
-          <p>The app must launch without opening a terminal window that needs to stay open. Release builds use <code>-ldflags="-H=windowsgui"</code>.</p>
-        </div>
-        <div class="decision">
-          <h3>Native Windows UI</h3>
-          <p><span class="status">Accepted</span></p>
-          <p>The UI uses the Go Walk toolkit for a native Windows desktop application rather than a web app or terminal interface.</p>
-        </div>
-        <div class="decision">
-          <h3>Public GitHub distribution</h3>
-          <p><span class="status">Accepted</span></p>
-          <p>The repository is public, and releases attach the built <code>pingaro.exe</code> asset with user-facing download and run instructions.</p>
-        </div>
-      </div>
+      <ul>
+        <li><strong>GUI only:</strong> the TUI version was removed. Pingaro now has only the graphical Windows application.</li>
+        <li><strong>No terminal dependency:</strong> the app must launch without opening a terminal window that needs to stay open. Release builds use <code>-ldflags="-H=windowsgui"</code>.</li>
+        <li><strong>Native Windows UI:</strong> the UI uses the Go Walk toolkit for a native Windows desktop application rather than a web app or terminal interface.</li>
+        <li><strong>Public GitHub distribution:</strong> the repository is public, and releases attach the built <code>pingaro.exe</code> asset with user-facing download and run instructions.</li>
+      </ul>
     </section>
 
     <section id="measurement">
@@ -707,28 +648,12 @@
 
     <section id="build">
       <h2>Build And Release Decisions</h2>
-      <div class="grid">
-        <div class="decision">
-          <h3>Repeatable Windows resources</h3>
-          <p><span class="status">Accepted</span></p>
-          <p><code>go generate ./...</code> runs <code>github.com/akavel/rsrc@v0.10.2</code> to refresh <code>rsrc.syso</code> from the manifest and icon.</p>
-        </div>
-        <div class="decision">
-          <h3>GUI subsystem build</h3>
-          <p><span class="status">Accepted</span></p>
-          <p>Release builds use <code>go build -trimpath -ldflags="-H=windowsgui" -o pingaro.exe .</code>.</p>
-        </div>
-        <div class="decision">
-          <h3>One release asset</h3>
-          <p><span class="status">Accepted</span></p>
-          <p>GitHub releases attach <code>pingaro.exe</code>. Users download and run that executable directly.</p>
-        </div>
-        <div class="decision">
-          <h3>Unsigned app warning</h3>
-          <p><span class="status">Accepted</span></p>
-          <p>Release notes and README tell users how to run the unsigned executable only if it was downloaded from the official GitHub release page.</p>
-        </div>
-      </div>
+      <ul>
+        <li><strong>Repeatable Windows resources:</strong> <code>go generate ./...</code> runs <code>github.com/akavel/rsrc@v0.10.2</code> to refresh <code>rsrc.syso</code> from the manifest and icon.</li>
+        <li><strong>GUI subsystem build:</strong> release builds use <code>go build -trimpath -ldflags="-H=windowsgui" -o pingaro.exe .</code>.</li>
+        <li><strong>One release asset:</strong> GitHub releases attach <code>pingaro.exe</code>. Users download and run that executable directly.</li>
+        <li><strong>Unsigned app warning:</strong> release notes and README tell users how to run the unsigned executable only if it was downloaded from the official GitHub release page.</li>
+      </ul>
     </section>
 
     <section id="history">
@@ -762,6 +687,10 @@
         <tr>
           <td>Updates should be made in the same change as the behavior they document.</td>
           <td>Keeping documentation and implementation together makes review and future maintenance easier.</td>
+        </tr>
+        <tr>
+          <td>Document presentation should stay purposeful: use richer HTML only when it improves understanding, such as GUI mockups, severity swatches, threshold callouts, and tables for structured comparisons.</td>
+          <td>The design log should be easy to read and maintain. Decoration such as sticky navigation or repeated status labels should not compete with the decisions themselves.</td>
         </tr>
       </table>
     </section>
