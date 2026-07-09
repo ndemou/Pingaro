@@ -2,12 +2,12 @@
 
 Pingaro is a Windows app for monitoring connection quality over time. If you are a network expert, it gives you
 clear visualizations of response time, packet loss, and jitter. If you are not, but just want to know whether your
-Internet connection is good enough, pick a usage profile, such as Audio Calls or Gaming, and let Pingaro highlight
+Internet connection is good enough, pick a use profile, such as Audio Calls or Online Gaming, and let Pingaro highlight
 any quality issues it detects. You can leave it running in the background and review the results later.
 
 <img width="1211" height="948" alt="image" src="https://github.com/user-attachments/assets/1ab3a613-a6ea-463e-a2a6-641fc815b2ec" />
 
-Settings are saved in `%AppData%\Pingaro\settings.json`. Older versions used `%AppData%\Pingaro\pingaro.json`; Pingaro migrates that legacy file to `settings.json` and deletes the old file after a successful migration.
+Settings are saved in `%AppData%\Pingaro\settings.json`. History is saved in `%AppData%\Pingaro\history.json`. Older versions used `%AppData%\Pingaro\pingaro.json` for settings and `%AppData%\Pingaro\pingaro-history.json` for history; Pingaro migrates those legacy files to the clearer names when needed.
 
 ## Download From GitHub
 
@@ -24,7 +24,7 @@ If Windows shows a security warning because the executable is unsigned, choose `
 
 ## Why Use It
 
-Raw `ping.exe` output is hard to interpret over more than a few seconds. Pingaro gives you a dashboard view of the same kind of signal: current RTT, aggregated p95 RTT, packet loss, and one-way jitter estimates.
+Raw `ping.exe` output is hard to interpret over more than a few seconds. Pingaro gives you a dashboard view of the same kind of signal: live latency, aggregated p95 RTT, packet loss, and one-way jitter estimates.
 
 When checking Internet quality, Pingaro can ping multiple well-known hosts in parallel. If at least one host replies in a batch, the batch is treated as successful and the minimum RTT is used. That makes the view less sensitive to a temporary issue on one remote host.
 
@@ -32,15 +32,15 @@ When checking Internet quality, Pingaro can ping multiple well-known hosts in pa
 
 1. Start `pingaro.exe`.
 2. Leave the default Gateway and Internet targets, or enter one to three target groups.
-3. Select one or more Internet uses.
+3. Select one or more use profiles.
 4. Click `Start`.
 5. Watch the graphs for spikes, packet loss, or sustained jitter.
 
 The special target name `localhost` resolves to `127.0.0.1`. The special target name `gateway` resolves to the current default gateway IP address.
 
-By default Pingaro selects `email & browsing`, `audio calls`, `video calls`, and `online gaming`. It leaves `remote desktop` and `Superhuman Gaming` unchecked.
+By default Pingaro selects `Browsing & Email`, `Audio Calls`, `Video Calls`, and `Online Gaming`. It leaves `Remote Desktop` and `Superhuman Gaming` unchecked.
 
-When multiple uses are selected, Pingaro grades good, medium, and bad measurements using the strictest threshold from the selected uses. The jitter graph is shown only when `audio calls` or `video calls` is selected.
+When multiple use profiles are selected, Pingaro grades good, medium, and bad measurements using the strictest threshold from the selected profiles. The jitter graph is shown only when `Audio Calls` or `Video Calls` is selected.
 
 ## Metrics
 

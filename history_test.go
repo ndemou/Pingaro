@@ -125,8 +125,8 @@ func TestLoadConfigMigratesLegacyPingaroJSON(t *testing.T) {
 	if len(got.Groups) != 1 || got.Groups[0].Name != "Gateway" || got.Groups[0].Targets != "gateway" {
 		t.Fatalf("loaded groups = %+v, want Gateway gateway", got.Groups)
 	}
-	if len(got.UseTypes) != 1 || got.UseTypes[0] != "audio calls" {
-		t.Fatalf("loaded use types = %v, want [audio calls]", got.UseTypes)
+	if len(got.UseTypes) != 1 || got.UseTypes[0] != "Audio Calls" {
+		t.Fatalf("loaded use types = %v, want [Audio Calls]", got.UseTypes)
 	}
 	if _, err := os.Stat(settingsPath); err != nil {
 		t.Fatalf("settings.json was not written: %v", err)
@@ -155,6 +155,56 @@ func TestLoadConfigPrefersSettingsJSONOverLegacy(t *testing.T) {
 	}
 	if _, err := os.Stat(legacyPath); err != nil {
 		t.Fatalf("legacy config should be left alone when settings.json exists: %v", err)
+	}
+}
+
+func TestMigrateLegacyHistoryFileRenamesDefaultHistory(t *testing.T) {
+	dir := t.TempDir()
+	historyPath := filepath.Join(dir, "history.json")
+	legacyPath := filepath.Join(dir, "pingaro-history.json")
+	legacy := []byte(`{"version":1,"savedAt":"2026-06-24T10:20:00+03:00","periodSeconds":120,"samples":[],"aggregates":[]}` + "\n")
+	if err := os.WriteFile(legacyPath, legacy, 0644); err != nil {
+		t.Fatalf("WriteFile legacy history: %v", err)
+	}
+
+	if err := migrateLegacyHistoryFile(historyPath, legacyPath); err != nil {
+		t.Fatalf("migrateLegacyHistoryFile() error = %v", err)
+	}
+	got, err := os.ReadFile(historyPath)
+	if err != nil {
+		t.Fatalf("history.json was not written: %v", err)
+	}
+	if string(got) != string(legacy) {
+		t.Fatalf("history.json content = %q, want %q", got, legacy)
+	}
+	if _, err := os.Stat(legacyPath); !os.IsNotExist(err) {
+		t.Fatalf("legacy pingaro-history.json still exists or stat failed unexpectedly: %v", err)
+	}
+}
+
+func TestMigrateLegacyHistoryFileLeavesLegacyWhenHistoryExists(t *testing.T) {
+	dir := t.TempDir()
+	historyPath := filepath.Join(dir, "history.json")
+	legacyPath := filepath.Join(dir, "pingaro-history.json")
+	if err := os.WriteFile(historyPath, []byte("new\n"), 0644); err != nil {
+		t.Fatalf("WriteFile history: %v", err)
+	}
+	if err := os.WriteFile(legacyPath, []byte("legacy\n"), 0644); err != nil {
+		t.Fatalf("WriteFile legacy history: %v", err)
+	}
+
+	if err := migrateLegacyHistoryFile(historyPath, legacyPath); err != nil {
+		t.Fatalf("migrateLegacyHistoryFile() error = %v", err)
+	}
+	if _, err := os.Stat(legacyPath); err != nil {
+		t.Fatalf("legacy history should be left alone when history.json exists: %v", err)
+	}
+	got, err := os.ReadFile(historyPath)
+	if err != nil {
+		t.Fatalf("ReadFile history: %v", err)
+	}
+	if string(got) != "new\n" {
+		t.Fatalf("history.json content = %q, want new", got)
 	}
 }
 
@@ -278,12 +328,12 @@ func TestRedistributedChartHeightsHidesJitterAndSharesSpace(t *testing.T) {
 
 func TestDefaultUseTypesExcludeRemoteDesktopAndSuperhumanGaming(t *testing.T) {
 	got := useTypeSet(defaultUseTypes())
-	for _, name := range []string{"email & browsing", "audio calls", "video calls", "online gaming"} {
+	for _, name := range []string{"Browsing & Email", "Audio Calls", "Video Calls", "Online Gaming"} {
 		if !got[name] {
 			t.Fatalf("default uses missing %q: got %v", name, defaultUseTypes())
 		}
 	}
-	for _, name := range []string{"remote desktop", "Superhuman Gaming"} {
+	for _, name := range []string{"Remote Desktop", "Superhuman Gaming"} {
 		if got[name] {
 			t.Fatalf("default uses unexpectedly include %q: got %v", name, defaultUseTypes())
 		}
@@ -291,7 +341,7 @@ func TestDefaultUseTypesExcludeRemoteDesktopAndSuperhumanGaming(t *testing.T) {
 }
 
 func TestProfileForUsesUsesMostDemandingThresholds(t *testing.T) {
-	got := profileForUses([]string{"email & browsing", "online gaming", "video calls"})
+	got := profileForUses([]string{"Browsing & Email", "Online Gaming", "Video Calls"})
 	if got.RTT != [3]float64{80, 140, 220} {
 		t.Fatalf("RTT thresholds = %v, want [80 140 220]", got.RTT)
 	}
@@ -304,14 +354,14 @@ func TestProfileForUsesUsesMostDemandingThresholds(t *testing.T) {
 }
 
 func TestUsesShowJitterOnlyForAudioOrVideoCalls(t *testing.T) {
-	if usesShowJitter([]string{"email & browsing", "online gaming"}) {
+	if usesShowJitter([]string{"Browsing & Email", "Online Gaming"}) {
 		t.Fatal("usesShowJitter returned true without audio or video calls")
 	}
-	if !usesShowJitter([]string{"audio calls"}) {
-		t.Fatal("usesShowJitter returned false for audio calls")
+	if !usesShowJitter([]string{"Audio Calls"}) {
+		t.Fatal("usesShowJitter returned false for Audio Calls")
 	}
-	if !usesShowJitter([]string{"video calls"}) {
-		t.Fatal("usesShowJitter returned false for video calls")
+	if !usesShowJitter([]string{"Video Calls"}) {
+		t.Fatal("usesShowJitter returned false for Video Calls")
 	}
 }
 
@@ -319,6 +369,13 @@ func TestNormalizeUseTypesRenamesLowLatencyGaming(t *testing.T) {
 	got := normalizeUseTypes([]string{"low latency gaming"}, "")
 	if len(got) != 1 || got[0] != "Superhuman Gaming" {
 		t.Fatalf("normalizeUseTypes(low latency gaming) = %v, want [Superhuman Gaming]", got)
+	}
+}
+
+func TestNormalizeUseTypesRenamesEmailBrowsing(t *testing.T) {
+	got := normalizeUseTypes([]string{"email & browsing"}, "")
+	if len(got) != 1 || got[0] != "Browsing & Email" {
+		t.Fatalf("normalizeUseTypes(email & browsing) = %v, want [Browsing & Email]", got)
 	}
 }
 
@@ -396,7 +453,7 @@ func TestSummarizeConnectionIssuesCombinesSeverities(t *testing.T) {
 func TestConnectionIssuesPreferAggregatesOverRealtime(t *testing.T) {
 	at := issueTestTime(12, 34)
 	a := &app{
-		settings: savedConfig{UseTypes: []string{"online gaming"}},
+		settings: savedConfig{UseTypes: []string{"Online Gaming"}},
 		samples: []sampleEvent{
 			{at: at, rtt: 300, targetLabel: "Internet"},
 		},
@@ -417,7 +474,7 @@ func TestConnectionIssuesPreferAggregatesOverRealtime(t *testing.T) {
 func TestConnectionIssuesFallBackToRealtimeBeforeAggregates(t *testing.T) {
 	at := issueTestTime(12, 34)
 	a := &app{
-		settings: savedConfig{UseTypes: []string{"online gaming"}},
+		settings: savedConfig{UseTypes: []string{"Online Gaming"}},
 		samples: []sampleEvent{
 			{at: at, rtt: 300, targetLabel: "Internet"},
 		},
@@ -436,7 +493,7 @@ func TestConnectionIssuesFallBackToRealtimeBeforeAggregates(t *testing.T) {
 func TestConnectionIssuesUseVisibleAggregateGraphs(t *testing.T) {
 	at := issueTestTime(12, 34)
 	hiddenJitter := &app{
-		settings: savedConfig{UseTypes: []string{"online gaming"}},
+		settings: savedConfig{UseTypes: []string{"Online Gaming"}},
 		aggregates: []aggregatePoint{
 			{at: at, p95: 20, loss: 0, jitterP95: 500},
 		},
@@ -450,7 +507,7 @@ func TestConnectionIssuesUseVisibleAggregateGraphs(t *testing.T) {
 	}
 
 	visibleJitter := &app{
-		settings: savedConfig{UseTypes: []string{"audio calls"}},
+		settings: savedConfig{UseTypes: []string{"Audio Calls"}},
 		aggregates: []aggregatePoint{
 			{at: at, p95: 20, loss: 0, jitterP95: 500},
 		},

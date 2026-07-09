@@ -418,17 +418,17 @@
         </tr>
         <tr>
           <td>RTT</td>
-          <td>Realtime chart in milliseconds.</td>
-          <td>Keep a live view so users can see immediate spikes and loss events.</td>
+          <td>Live latency chart in milliseconds, titled <strong>Latency (live)</strong>.</td>
+          <td>Use the word latency in chart titles because it is plainer than RTT for non-experts while the metric still comes from round-trip ping time.</td>
         </tr>
         <tr>
           <td>p95 RTT</td>
-          <td>Aggregate chart per configured period.</td>
+          <td>Aggregate chart per configured period, titled <strong>Latency per N min (p95 of RTT)</strong>.</td>
           <td>Use p95 rather than average so sustained high latency is visible without letting one extreme point dominate.</td>
         </tr>
         <tr>
           <td>Loss</td>
-          <td>Aggregate packet-loss percentage.</td>
+          <td>Aggregate packet-loss percentage, titled <strong>Packet loss per N min (%)</strong>.</td>
           <td>Show loss separately because a connection can have acceptable RTT but still fail calls or games through drops.</td>
         </tr>
         <tr>
@@ -448,8 +448,8 @@
     </section>
 
     <section id="profiles">
-      <h2>Internet Use Profiles</h2>
-      <p>Internet Use is a multi-select list. The selected profiles determine the thresholds for classifying good, minor, noticeable, and serious issues.</p>
+      <h2>Use Profiles</h2>
+      <p>Use profiles are a multi-select list. The selected profiles determine the thresholds for classifying good, minor, noticeable, and serious issues.</p>
       <table>
         <tr>
           <th>Profile</th>
@@ -460,7 +460,7 @@
           <th>Shows jitter graph</th>
         </tr>
         <tr>
-          <td>email &amp; browsing</td>
+          <td>Browsing &amp; Email</td>
           <td>Yes</td>
           <td>250 / 500 / 1000</td>
           <td>3 / 8 / 15</td>
@@ -468,7 +468,7 @@
           <td>No</td>
         </tr>
         <tr>
-          <td>remote desktop</td>
+          <td>Remote Desktop</td>
           <td>No</td>
           <td>120 / 200 / 350</td>
           <td>1 / 3 / 8</td>
@@ -476,7 +476,7 @@
           <td>No</td>
         </tr>
         <tr>
-          <td>audio calls</td>
+          <td>Audio Calls</td>
           <td>Yes</td>
           <td>120 / 180 / 300</td>
           <td>1 / 3 / 6</td>
@@ -484,7 +484,7 @@
           <td>Yes</td>
         </tr>
         <tr>
-          <td>video calls</td>
+          <td>Video Calls</td>
           <td>Yes</td>
           <td>150 / 250 / 400</td>
           <td>2 / 5 / 10</td>
@@ -492,7 +492,7 @@
           <td>Yes</td>
         </tr>
         <tr>
-          <td>online gaming</td>
+          <td>Online Gaming</td>
           <td>Yes</td>
           <td>80 / 140 / 220</td>
           <td>0.5 / 1.5 / 4</td>
@@ -573,8 +573,8 @@
       <h3>Layout Decisions</h3>
       <ul>
         <li>The first screen is the actual monitoring dashboard, not a landing page.</li>
-        <li>The left pane contains target groups, Internet uses, aggregation settings, and actions.</li>
-        <li>The right pane contains the realtime RTT chart and aggregate charts.</li>
+        <li>The left pane contains target groups, use profiles, measurement rate, aggregation window, actions, and a History heading over the Save and Load buttons.</li>
+        <li>The right pane contains the live latency chart and aggregate charts.</li>
         <li>Chart headers, last values, plot area, axis labels, and warning regions are custom-painted inside Walk <code>CustomWidget</code> controls.</li>
         <li>When jitter is hidden, its vertical space is redistributed to visible charts.</li>
         <li>Loss and jitter charts can shrink when their data does not need full height, with the saved space redistributed to other charts.</li>
@@ -625,18 +625,23 @@
         </tr>
         <tr>
           <td>Default selected uses</td>
-          <td>email &amp; browsing, audio calls, video calls, online gaming</td>
+          <td>Browsing &amp; Email, Audio Calls, Video Calls, Online Gaming</td>
           <td>These cover common usage without immediately applying the strictest possible thresholds.</td>
         </tr>
         <tr>
           <td>Default unselected uses</td>
-          <td>remote desktop, Superhuman Gaming</td>
+          <td>Remote Desktop, Superhuman Gaming</td>
           <td>These are more specialized and can make the app more sensitive than most users expect.</td>
         </tr>
         <tr>
           <td>Saved config</td>
           <td>Settings are stored in <code>%AppData%\Pingaro\settings.json</code> and reused on next launch.</td>
           <td>The filename should describe the file's purpose. <code>settings.json</code> is clearer than the old <code>pingaro.json</code> name inside a Pingaro-specific folder.</td>
+        </tr>
+        <tr>
+          <td>Saved history</td>
+          <td>History is stored in <code>%AppData%\Pingaro\history.json</code>.</td>
+          <td>The filename should describe the file's purpose. <code>history.json</code> is clearer than the old <code>pingaro-history.json</code> name inside a Pingaro-specific folder.</td>
         </tr>
         <tr>
           <td>Legacy config cleanup</td>
@@ -663,7 +668,9 @@
         <li>Saved samples and aggregate points can be loaded back into the UI.</li>
         <li>Legacy single-use configuration is normalized into the newer multi-use list.</li>
         <li>Legacy <code>pingaro.json</code> settings are migrated to <code>settings.json</code> and cleaned up.</li>
+        <li>Legacy <code>pingaro-history.json</code> history is migrated to <code>history.json</code> when the new history file does not already exist.</li>
         <li>The old "low latency gaming" profile name is normalized to "Superhuman Gaming".</li>
+        <li>The old "email &amp; browsing" profile name is normalized to "Browsing &amp; Email".</li>
         <li>Loaded history can apply its saved config when present.</li>
       </ul>
     </section>
@@ -707,7 +714,7 @@
         <div><strong>GUI-only scope</strong></div>
         <div>Removed the TUI path and standardized on one executable: <code>pingaro.exe</code>.</div>
         <div><strong>Use profiles</strong></div>
-        <div>Added multi-select Internet uses, strictest-threshold grading, Superhuman Gaming, and conditional jitter visibility.</div>
+        <div>Added multi-select use profiles, strictest-threshold grading, Superhuman Gaming, and conditional jitter visibility.</div>
         <div><strong>Overall status</strong></div>
         <div>Added the bold status summary below the ping count, using aggregate graphs as the primary source.</div>
         <div><strong>Icon and release polish</strong></div>
@@ -720,6 +727,8 @@
         <div>Made this design-decision document an explicitly maintained artifact for future AI-agent changes.</div>
         <div><strong>Settings filename</strong></div>
         <div>Renamed the saved settings file from <code>pingaro.json</code> to <code>settings.json</code>, with one-time migration and cleanup for the legacy file.</div>
+        <div><strong>User-visible naming pass</strong></div>
+        <div>Renamed history storage to <code>history.json</code>, changed visible labels to Use profiles, Measurements/sec, Aggregation window (sec), and No measurements yet, and switched profile names to consistent title case.</div>
       </div>
     </section>
   </main>

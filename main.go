@@ -231,12 +231,17 @@ type app struct {
 }
 
 var useProfiles = []useProfile{
-	{Name: "email & browsing", RTT: [3]float64{250, 500, 1000}, Loss: [3]float64{3, 8, 15}, Jitter: [3]float64{80, 150, 300}, DefaultSelected: true},
-	{Name: "remote desktop", RTT: [3]float64{120, 200, 350}, Loss: [3]float64{1, 3, 8}, Jitter: [3]float64{30, 60, 120}},
-	{Name: "audio calls", RTT: [3]float64{120, 180, 300}, Loss: [3]float64{1, 3, 6}, Jitter: [3]float64{20, 40, 80}, DefaultSelected: true, ShowsJitter: true},
-	{Name: "video calls", RTT: [3]float64{150, 250, 400}, Loss: [3]float64{2, 5, 10}, Jitter: [3]float64{30, 60, 120}, DefaultSelected: true, ShowsJitter: true},
-	{Name: "online gaming", RTT: [3]float64{80, 140, 220}, Loss: [3]float64{0.5, 1.5, 4}, Jitter: [3]float64{15, 30, 60}, DefaultSelected: true},
+	{Name: "Browsing & Email", RTT: [3]float64{250, 500, 1000}, Loss: [3]float64{3, 8, 15}, Jitter: [3]float64{80, 150, 300}, DefaultSelected: true},
+	{Name: "Remote Desktop", RTT: [3]float64{120, 200, 350}, Loss: [3]float64{1, 3, 8}, Jitter: [3]float64{30, 60, 120}},
+	{Name: "Audio Calls", RTT: [3]float64{120, 180, 300}, Loss: [3]float64{1, 3, 6}, Jitter: [3]float64{20, 40, 80}, DefaultSelected: true, ShowsJitter: true},
+	{Name: "Video Calls", RTT: [3]float64{150, 250, 400}, Loss: [3]float64{2, 5, 10}, Jitter: [3]float64{30, 60, 120}, DefaultSelected: true, ShowsJitter: true},
+	{Name: "Online Gaming", RTT: [3]float64{80, 140, 220}, Loss: [3]float64{0.5, 1.5, 4}, Jitter: [3]float64{15, 30, 60}, DefaultSelected: true},
 	{Name: "Superhuman Gaming", RTT: [3]float64{40, 80, 140}, Loss: [3]float64{0.2, 1, 2.5}, Jitter: [3]float64{8, 18, 35}},
+}
+
+var useProfileAliases = map[string]string{
+	"email & browsing":   "Browsing & Email",
+	"low latency gaming": "Superhuman Gaming",
 }
 
 func useTypes() []string {
@@ -259,8 +264,8 @@ func defaultUseTypes() []string {
 
 func normalizeUseType(value string) string {
 	value = strings.TrimSpace(strings.ToLower(value))
-	if value == "low latency gaming" {
-		value = strings.ToLower("Superhuman Gaming")
+	if name, ok := useProfileAliases[value]; ok {
+		return name
 	}
 	for _, profile := range useProfiles {
 		if value == strings.ToLower(profile.Name) {
@@ -462,7 +467,45 @@ func legacyConfigPath() string {
 }
 
 func defaultHistoryPath() string {
+	return appDataPath("history.json")
+}
+
+func legacyHistoryPath() string {
 	return appDataPath("pingaro-history.json")
+}
+
+func activeDefaultHistoryPath() string {
+	path := defaultHistoryPath()
+	_ = migrateLegacyHistoryFile(path, legacyHistoryPath())
+	return path
+}
+
+func migrateLegacyHistoryFile(path, legacyPath string) error {
+	if _, err := os.Stat(path); err == nil {
+		return nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	if _, err := os.Stat(legacyPath); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	if err := os.Rename(legacyPath, path); err == nil {
+		return nil
+	}
+	data, err := os.ReadFile(legacyPath)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return err
+	}
+	return os.Remove(legacyPath)
 }
 
 func appDataPath(name string) string {
@@ -543,13 +586,13 @@ func (a *app) run() error {
 							a.groupEditor(0),
 							a.groupEditor(1),
 							a.groupEditor(2),
-							Label{Text: "Internet uses"},
+							Label{Text: "Use profiles"},
 							a.useTypeEditor(),
 							Composite{
 								Layout: VBox{MarginsZero: true, Spacing: 3},
 								Children: []Widget{
-									a.lineEditor("Batches/sec", &a.pps, strconv.Itoa(max(1, a.settings.PPS))),
-									a.lineEditor("Aggregate sec", &a.agg, strconv.Itoa(max(3, a.settings.AggregationSeconds))),
+									a.lineEditor("Measurements/sec", &a.pps, strconv.Itoa(max(1, a.settings.PPS))),
+									a.lineEditor("Aggregation window (sec)", &a.agg, strconv.Itoa(max(3, a.settings.AggregationSeconds))),
 								},
 							},
 							Composite{
@@ -557,11 +600,17 @@ func (a *app) run() error {
 								Children: []Widget{
 									PushButton{AssignTo: &a.startButton, Text: "Start", OnClicked: a.start},
 									PushButton{AssignTo: &a.stopButton, Text: "Stop", Enabled: false, OnClicked: a.stop},
+								},
+							},
+							Label{Text: "History"},
+							Composite{
+								Layout: Grid{Columns: 2, MarginsZero: true},
+								Children: []Widget{
 									PushButton{Text: "Save", OnClicked: a.saveHistoryDialog},
 									PushButton{Text: "Load", OnClicked: a.loadHistoryDialog},
 								},
 							},
-							Label{AssignTo: &a.currentLabel, Text: "No samples yet"},
+							Label{AssignTo: &a.currentLabel, Text: "No measurements yet"},
 							Composite{
 								AssignTo: &a.summaryPanel,
 								Layout:   VBox{Margins: Margins{Left: 6, Top: 4, Right: 6, Bottom: 4}},
@@ -605,7 +654,7 @@ func (a *app) run() error {
 	a.updateJitterChartVisibility()
 	a.MainWindow.Closing().Attach(func(canceled *bool, reason walk.CloseReason) {
 		a.saveInputs()
-		_ = a.appendPendingHistory(defaultHistoryPath())
+		_ = a.appendPendingHistory(activeDefaultHistoryPath())
 	})
 	a.start()
 	a.MainWindow.Run()
@@ -876,7 +925,7 @@ func (a *app) accept(ev sampleEvent) {
 	a.updateCurrentLabel()
 	if time.Since(a.lastHistorySave) >= 10*time.Minute {
 		a.saveInputs()
-		if err := a.appendPendingHistory(defaultHistoryPath()); err == nil {
+		if err := a.appendPendingHistory(activeDefaultHistoryPath()); err == nil {
 			a.lastHistorySave = time.Now()
 		}
 	}
@@ -887,7 +936,7 @@ func (a *app) saveHistoryDialog() {
 	dlg := new(walk.FileDialog)
 	dlg.Title = "Save Pingaro History"
 	dlg.Filter = "Pingaro History (*.json)|*.json|All Files (*.*)|*.*"
-	dlg.FilePath = defaultHistoryPath()
+	dlg.FilePath = activeDefaultHistoryPath()
 	if ok, err := dlg.ShowSave(a.MainWindow); err != nil {
 		walk.MsgBox(a.MainWindow, "Pingaro", err.Error(), walk.MsgBoxIconError)
 		return
@@ -905,7 +954,7 @@ func (a *app) loadHistoryDialog() {
 	dlg := new(walk.FileDialog)
 	dlg.Title = "Load Pingaro History"
 	dlg.Filter = "Pingaro History (*.json)|*.json|All Files (*.*)|*.*"
-	dlg.FilePath = defaultHistoryPath()
+	dlg.FilePath = activeDefaultHistoryPath()
 	if ok, err := dlg.ShowOpen(a.MainWindow); err != nil {
 		walk.MsgBox(a.MainWindow, "Pingaro", err.Error(), walk.MsgBoxIconError)
 		return
@@ -920,16 +969,17 @@ func (a *app) loadHistoryDialog() {
 func (a *app) saveHistory(path string) error {
 	a.saveInputs()
 	if path == "" {
-		path = defaultHistoryPath()
+		path = activeDefaultHistoryPath()
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err
 	}
-	if samePath(path, defaultHistoryPath()) {
+	defaultPath := activeDefaultHistoryPath()
+	if samePath(path, defaultPath) {
 		return a.appendPendingHistory(path)
 	}
 
-	if records, err := readHistoryFile(defaultHistoryPath()); err == nil {
+	if records, err := readHistoryFile(defaultPath); err == nil {
 		if len(a.pendingSamples) > 0 || len(a.pendingAggregates) > 0 {
 			records = append(records, a.pendingHistorySnapshot())
 		}
@@ -948,7 +998,7 @@ func (a *app) appendPendingHistory(path string) error {
 		return nil
 	}
 	if path == "" {
-		path = defaultHistoryPath()
+		path = activeDefaultHistoryPath()
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err
@@ -1259,7 +1309,7 @@ func (a *app) refreshMetricsFromLoadedHistory() {
 
 func (a *app) updateCurrentLabel() {
 	if a.sessionPings == 0 {
-		a.currentLabel.SetText("No samples yet")
+		a.currentLabel.SetText("No measurements yet")
 		a.setConnectionSummary("", 0, false)
 		return
 	}
@@ -1570,7 +1620,7 @@ func (a *app) rttPoints() ([]chartPoint, time.Time, float64) {
 func (a *app) paintRTT(canvas *walk.Canvas, bounds walk.Rectangle) error {
 	points, now, maxValue := a.rttPoints()
 	headerRect, chartRect := splitChartBounds(a.rttChart.ClientBoundsPixels())
-	if err := drawChartHeader(canvas, headerRect, "RTT (realtime)", lastItems(points, "ms", lostRTT, true)); err != nil {
+	if err := drawChartHeader(canvas, headerRect, "Latency (live)", lastItems(points, "ms", lostRTT, true)); err != nil {
 		return err
 	}
 	return drawTimeChart(canvas, chartRect, points, now.Add(-120*time.Second), now, 20*time.Second, 0, maxValue, "ms", walk.RGB(40, 150, 135))
@@ -1589,7 +1639,7 @@ func (a *app) p95Points() ([]chartPoint, float64) {
 func (a *app) paintP95(canvas *walk.Canvas, bounds walk.Rectangle) error {
 	points, maxValue := a.p95Points()
 	headerRect, chartRect := splitChartBounds(a.p95Chart.ClientBoundsPixels())
-	if err := drawChartHeader(canvas, headerRect, "RTT per "+periodLabel(a.period)+" (p95)", lastItems(points, "ms", -1, false)); err != nil {
+	if err := drawChartHeader(canvas, headerRect, "Latency per "+periodLabel(a.period)+" (p95 of RTT)", lastItems(points, "ms", -1, false)); err != nil {
 		return err
 	}
 	return a.drawAggregateChart(canvas, chartRect, points, maxValue, "ms", walk.RGB(40, 150, 135))
@@ -1607,7 +1657,7 @@ func (a *app) lossPoints() []chartPoint {
 func (a *app) paintLoss(canvas *walk.Canvas, bounds walk.Rectangle) error {
 	points := a.lossPoints()
 	headerRect, chartRect := splitChartBounds(a.lossChart.ClientBoundsPixels())
-	if err := drawChartHeader(canvas, headerRect, "Loss per "+periodLabel(a.period)+" (%)", lastItems(points, "%", -1, false)); err != nil {
+	if err := drawChartHeader(canvas, headerRect, "Packet loss per "+periodLabel(a.period)+" (%)", lastItems(points, "%", -1, false)); err != nil {
 		return err
 	}
 	return a.drawAggregateChart(canvas, chartRect, points, bucketedYMax(points, lossYMaxBuckets, -1), "%", walk.RGB(200, 75, 88))
@@ -1626,7 +1676,7 @@ func (a *app) jitterPoints() ([]chartPoint, float64) {
 func (a *app) paintJitter(canvas *walk.Canvas, bounds walk.Rectangle) error {
 	points, maxValue := a.jitterPoints()
 	headerRect, chartRect := splitChartBounds(a.jitterChart.ClientBoundsPixels())
-	if err := drawChartHeader(canvas, headerRect, "One-way Jitter per "+periodLabel(a.period)+" (p95)", lastItems(points, "ms", -1, false)); err != nil {
+	if err := drawChartHeader(canvas, headerRect, "One-way jitter per "+periodLabel(a.period)+" (p95)", lastItems(points, "ms", -1, false)); err != nil {
 		return err
 	}
 	return a.drawAggregateChart(canvas, chartRect, points, maxValue, "ms", walk.RGB(215, 160, 70))
@@ -1710,7 +1760,7 @@ func drawTimeChart(canvas *walk.Canvas, rect walk.Rectangle, points []chartPoint
 		}
 	}
 	if len(points) == 0 {
-		return drawText(canvas, "No samples yet", rect, walk.RGB(120, 130, 140), walk.TextCenter|walk.TextVCenter|walk.TextSingleLine)
+		return drawText(canvas, "No measurements yet", rect, walk.RGB(120, 130, 140), walk.TextCenter|walk.TextVCenter|walk.TextSingleLine)
 	}
 	byGroup := map[int][]walk.Point{}
 	colors := map[int]walk.Color{}
@@ -2260,13 +2310,13 @@ func periodLabel(d time.Duration) string {
 		d = 120 * time.Second
 	}
 	if d < time.Minute {
-		return fmt.Sprintf("%d\"", int(math.Round(d.Seconds())))
+		return fmt.Sprintf("%d sec", int(math.Round(d.Seconds())))
 	}
 	minutes := d.Minutes()
 	if math.Abs(minutes-math.Round(minutes)) < 0.05 {
-		return fmt.Sprintf("%.0f'", minutes)
+		return fmt.Sprintf("%.0f min", minutes)
 	}
-	return strings.TrimRight(strings.TrimRight(fmt.Sprintf("%.1f", minutes), "0"), ".") + "'"
+	return strings.TrimRight(strings.TrimRight(fmt.Sprintf("%.1f", minutes), "0"), ".") + " min"
 }
 
 func maxChartValue(points []chartPoint, special float64) float64 {
