@@ -574,8 +574,11 @@
       <ul>
         <li>The first screen is the actual monitoring dashboard, not a landing page.</li>
         <li>The left pane contains target groups, use profiles, measurement rate, aggregation window, actions, and a History heading over the Save and Load buttons.</li>
+        <li>The total ping count, overall status, and build metadata sit at the bottom-left of the window so developers can identify the exact running build without opening external release notes.</li>
         <li>The right pane contains the live latency chart and aggregate charts.</li>
         <li>Chart headers, last values, plot area, axis labels, and warning regions are custom-painted inside Walk <code>CustomWidget</code> controls.</li>
+        <li>Line charts project off-scale values to their true position and clip line segments at the plot edge instead of clamping the point to the maximum Y-axis value.</li>
+        <li>X-axis labels use a shared time-tick selector with sensible time steps, second-level labels, at least three labels when space allows, and a density cap of roughly half the plot width.</li>
         <li>When jitter is hidden, its vertical space is redistributed to visible charts.</li>
         <li>Loss and jitter charts can shrink when their data does not need full height, with the saved space redistributed to other charts.</li>
         <li>Y-axis scaling uses bucketed maxima so the graph stays stable while still covering the visible data.</li>
@@ -666,6 +669,7 @@
       <ul>
         <li><strong>Repeatable Windows resources:</strong> <code>go generate ./...</code> runs <code>github.com/akavel/rsrc@v0.10.2</code> to refresh <code>rsrc.syso</code> from the manifest and icon.</li>
         <li><strong>GUI subsystem build:</strong> release builds use <code>go build -trimpath -ldflags="-H=windowsgui" -o pingaro.exe .</code>.</li>
+        <li><strong>Visible build metadata:</strong> release builds also set <code>main.appVersion</code> and <code>main.appBuildTime</code> through <code>-ldflags -X</code>; the UI shows the build time in local <code>YYYY-MM-DD HH:mm:ss</code> format.</li>
         <li><strong>One release asset:</strong> GitHub releases attach <code>pingaro.exe</code>. Users download and run that executable directly.</li>
         <li><strong>Unsigned app warning:</strong> release notes and README tell users how to run the unsigned executable only if it was downloaded from the official GitHub release page.</li>
       </ul>

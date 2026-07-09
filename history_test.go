@@ -45,6 +45,23 @@ func TestWindowIconResourceExists(t *testing.T) {
 	icon.Dispose()
 }
 
+func TestFormatBuildInfoFormatsRFC3339BuildTimeAsLocal(t *testing.T) {
+	got := formatBuildInfo("v1.2.3", "2026-07-09T10:38:56+03:00", time.Time{})
+	want := "v1.2.3 - built 2026-07-09 10:38:56"
+	if got != want {
+		t.Fatalf("formatBuildInfo() = %q, want %q", got, want)
+	}
+}
+
+func TestFormatBuildInfoFallsBackToExecutableTime(t *testing.T) {
+	fallback := time.Date(2026, time.July, 9, 10, 38, 56, 0, time.Local)
+	got := formatBuildInfo("", "", fallback)
+	want := "dev - built 2026-07-09 10:38:56"
+	if got != want {
+		t.Fatalf("formatBuildInfo() = %q, want %q", got, want)
+	}
+}
+
 func TestDefaultGroupColors(t *testing.T) {
 	got := defaultGroupColors()
 	want := []walk.Color{
@@ -344,6 +361,70 @@ func TestBucketedYMaxUsesSmallestBucketCovering90Percent(t *testing.T) {
 	got := bucketedYMax(points, rttYMaxBuckets, -1)
 	if got != 64 {
 		t.Fatalf("bucketedYMax() = %v, want 64", got)
+	}
+}
+
+func TestClipLineToRectClipsAtTopBoundary(t *testing.T) {
+	rect := walk.Rectangle{X: 10, Y: 20, Width: 100, Height: 50}
+	p1, p2, ok := clipLineToRect(rect, 60, 45, 60, -30)
+	if !ok {
+		t.Fatal("clipLineToRect returned false for line crossing the plot")
+	}
+	if p1 != (walk.Point{X: 60, Y: 45}) || p2 != (walk.Point{X: 60, Y: 20}) {
+		t.Fatalf("clipped line = %v -> %v, want (60,45) -> (60,20)", p1, p2)
+	}
+}
+
+func TestClipLineToRectRejectsFullyOffPlotLine(t *testing.T) {
+	rect := walk.Rectangle{X: 10, Y: 20, Width: 100, Height: 50}
+	if _, _, ok := clipLineToRect(rect, 20, 0, 90, 5); ok {
+		t.Fatal("clipLineToRect returned true for line fully above the plot")
+	}
+}
+
+func TestClipLineToRectClipsLeftAndRightBoundaries(t *testing.T) {
+	rect := walk.Rectangle{X: 10, Y: 20, Width: 100, Height: 50}
+	p1, p2, ok := clipLineToRect(rect, 0, 45, 120, 45)
+	if !ok {
+		t.Fatal("clipLineToRect returned false for horizontal crossing line")
+	}
+	if p1 != (walk.Point{X: 10, Y: 45}) || p2 != (walk.Point{X: 110, Y: 45}) {
+		t.Fatalf("clipped line = %v -> %v, want (10,45) -> (110,45)", p1, p2)
+	}
+}
+
+func TestXAxisTicksAimForAtLeastThreeLabelsWhenSpaceAllows(t *testing.T) {
+	start := time.Date(2026, time.July, 9, 12, 0, 0, 0, time.Local)
+	end := start.Add(2 * time.Minute)
+	ticks := xAxisTicks(start, end, 400)
+	if len(ticks) < 3 {
+		t.Fatalf("len(xAxisTicks) = %d, want at least 3: %v", len(ticks), ticks)
+	}
+	if len(ticks) > maxXAxisLabels(400) {
+		t.Fatalf("len(xAxisTicks) = %d, want at most %d", len(ticks), maxXAxisLabels(400))
+	}
+}
+
+func TestXAxisTicksAllowFewerThanThreeLabelsInNarrowPlots(t *testing.T) {
+	start := time.Date(2026, time.July, 9, 12, 0, 0, 0, time.Local)
+	end := start.Add(2 * time.Minute)
+	ticks := xAxisTicks(start, end, 100)
+	if len(ticks) > maxXAxisLabels(100) {
+		t.Fatalf("len(xAxisTicks) = %d, want at most %d", len(ticks), maxXAxisLabels(100))
+	}
+}
+
+func TestXAxisTicksUseSecondLevelLabels(t *testing.T) {
+	start := time.Date(2026, time.July, 9, 12, 0, 3, 0, time.Local)
+	end := start.Add(8 * time.Second)
+	ticks := xAxisTicks(start, end, 1000)
+	if len(ticks) == 0 {
+		t.Fatal("xAxisTicks returned no ticks")
+	}
+	for _, tick := range ticks {
+		if len(tick.label) != len("12:00:04") {
+			t.Fatalf("tick label = %q, want HH:mm:ss format", tick.label)
+		}
 	}
 }
 

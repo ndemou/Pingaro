@@ -63,6 +63,13 @@ go generate ./...
 go build -trimpath -ldflags="-H=windowsgui" -o pingaro.exe .
 ```
 
+Release builds should also set the visible version and build time:
+
+```powershell
+$buildTime = Get-Date -Format "yyyy-MM-ddTHH:mm:sszzz"
+go build -trimpath -ldflags="-H=windowsgui -X main.appVersion=vX.Y.Z -X main.appBuildTime=$buildTime" -o pingaro.exe .
+```
+
 The `-H=windowsgui` linker flag is required. Without it, Windows starts the app through a console subsystem and opens a terminal window that must remain open.
 `go generate ./...` refreshes `rsrc.syso` from `pingaro.exe.manifest` and `assets/pingaro.ico`.
 

@@ -40,11 +40,17 @@ const (
 	autosaveHistoryInterval   = 10 * time.Minute
 )
 
+var (
+	appVersion   = "dev"
+	appBuildTime = ""
+)
+
 const (
 	rttChartHeight       = 150
 	aggregateChartHeight = 145
 	chartHeaderHeight    = 18
 	headerChartGap       = 2
+	xAxisLabelWidth      = 64
 )
 
 var (
@@ -151,6 +157,16 @@ type chartPoint struct {
 	groupName  string
 	color      walk.Color
 	severity   int
+}
+
+type chartPlotPoint struct {
+	x float64
+	y float64
+}
+
+type timeAxisTick struct {
+	at    time.Time
+	label string
 }
 
 type connectionIssue struct {
@@ -359,6 +375,44 @@ func main() {
 	if err := a.run(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func buildInfoText() string {
+	return formatBuildInfo(appVersion, appBuildTime, executableModTime())
+}
+
+func formatBuildInfo(version, buildTime string, fallbackBuildTime time.Time) string {
+	version = strings.TrimSpace(version)
+	if version == "" {
+		version = "dev"
+	}
+	return fmt.Sprintf("%s - built %s", version, formatBuildTime(buildTime, fallbackBuildTime))
+}
+
+func formatBuildTime(buildTime string, fallback time.Time) string {
+	buildTime = strings.TrimSpace(buildTime)
+	if buildTime != "" {
+		if parsed, err := time.Parse(time.RFC3339, buildTime); err == nil {
+			return parsed.Local().Format("2006-01-02 15:04:05")
+		}
+		return buildTime
+	}
+	if !fallback.IsZero() {
+		return fallback.Local().Format("2006-01-02 15:04:05")
+	}
+	return "unknown"
+}
+
+func executableModTime() time.Time {
+	path, err := os.Executable()
+	if err != nil {
+		return time.Time{}
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return time.Time{}
+	}
+	return info.ModTime()
 }
 
 func defaultGroupColors() []walk.Color {
@@ -658,6 +712,7 @@ func (a *app) run() error {
 									PushButton{Text: "Load", OnClicked: a.loadHistoryDialog},
 								},
 							},
+							VSpacer{},
 							Label{AssignTo: &a.currentLabel, Text: "No measurements yet"},
 							Composite{
 								AssignTo: &a.summaryPanel,
@@ -677,7 +732,14 @@ func (a *app) run() error {
 									},
 								},
 							},
-							VSpacer{},
+							TextLabel{
+								Text:          buildInfoText(),
+								MinSize:       Size{150, 0},
+								Font:          Font{Family: "Segoe UI", PointSize: 8},
+								TextColor:     walk.RGB(120, 130, 140),
+								Background:    TransparentBrush{},
+								TextAlignment: AlignHNearVNear,
+							},
 						},
 					},
 					Composite{
@@ -1855,35 +1917,27 @@ func drawTimeChart(canvas *walk.Canvas, rect walk.Rectangle, points []chartPoint
 	}
 	if xGrid > 0 {
 		duration := end.Sub(start)
-		grid := xGrid
-		for grid.Seconds()/duration.Seconds()*float64(plot.Width) < 64 {
-			grid += xGrid
-		}
-		first := start.Truncate(grid)
-		if first.Before(start) {
-			first = first.Add(grid)
-		}
-		for t := first; !t.After(end); t = t.Add(grid) {
+		for _, tick := range xAxisTicks(start, end, plot.Width) {
+			t := tick.at
 			x := plot.X + int(t.Sub(start).Seconds()/duration.Seconds()*float64(plot.Width))
 			if err := canvas.DrawLinePixels(gridPen, walk.Point{X: x, Y: plot.Y}, walk.Point{X: x, Y: plot.Y + plot.Height}); err != nil {
 				return err
 			}
-			_ = drawText(canvas, t.Format("15:04"), walk.Rectangle{X: x - 24, Y: plot.Y + plot.Height + 3, Width: 48, Height: 18}, walk.RGB(80, 90, 100), walk.TextCenter|walk.TextVCenter|walk.TextSingleLine)
+			_ = drawText(canvas, tick.label, walk.Rectangle{X: x - xAxisLabelWidth/2, Y: plot.Y + plot.Height + 3, Width: xAxisLabelWidth, Height: 18}, walk.RGB(80, 90, 100), walk.TextCenter|walk.TextVCenter|walk.TextSingleLine)
 		}
 	}
 	if len(points) == 0 {
 		return drawText(canvas, "No measurements yet", rect, walk.RGB(120, 130, 140), walk.TextCenter|walk.TextVCenter|walk.TextSingleLine)
 	}
-	byGroup := map[int][]walk.Point{}
+	byGroup := map[int][]chartPlotPoint{}
 	colors := map[int]walk.Color{}
 	for _, p := range points {
 		if p.at.Before(start) || p.at.After(end) {
 			continue
 		}
-		x := plot.X + int(p.at.Sub(start).Seconds()/end.Sub(start).Seconds()*float64(plot.Width))
-		v := math.Min(math.Max(p.value, yMin), yMax)
-		y := plot.Y + plot.Height - int((v-yMin)/(yMax-yMin)*float64(plot.Height))
-		byGroup[p.groupIndex] = append(byGroup[p.groupIndex], walk.Point{X: x, Y: y})
+		x := float64(plot.X) + p.at.Sub(start).Seconds()/end.Sub(start).Seconds()*float64(plot.Width)
+		y := float64(plot.Y+plot.Height) - (p.value-yMin)/(yMax-yMin)*float64(plot.Height)
+		byGroup[p.groupIndex] = append(byGroup[p.groupIndex], chartPlotPoint{x: x, y: y})
 		colors[p.groupIndex] = p.color
 	}
 	for groupIndex, linePoints := range byGroup {
@@ -1894,9 +1948,15 @@ func drawTimeChart(canvas *walk.Canvas, rect walk.Rectangle, points []chartPoint
 		}
 		if len(linePoints) == 1 {
 			p := linePoints[0]
-			err = canvas.DrawLinePixels(pen, walk.Point{X: p.X - 1, Y: p.Y}, walk.Point{X: p.X + 1, Y: p.Y})
+			err = drawClippedLine(canvas, pen, plot, p.x-1, p.y, p.x+1, p.y)
 		} else {
-			err = canvas.DrawPolylinePixels(pen, linePoints)
+			for i := 1; i < len(linePoints); i++ {
+				p1 := linePoints[i-1]
+				p2 := linePoints[i]
+				if err = drawClippedLine(canvas, pen, plot, p1.x, p1.y, p2.x, p2.y); err != nil {
+					break
+				}
+			}
 		}
 		pen.Dispose()
 		if err != nil {
@@ -1913,6 +1973,63 @@ func chartLineColor(colors map[int]walk.Color, groupIndex int, fallback walk.Col
 	return fallback
 }
 
+func drawClippedLine(canvas *walk.Canvas, pen walk.Pen, rect walk.Rectangle, x1, y1, x2, y2 float64) error {
+	p1, p2, ok := clipLineToRect(rect, x1, y1, x2, y2)
+	if !ok {
+		return nil
+	}
+	return canvas.DrawLinePixels(pen, p1, p2)
+}
+
+func clipLineToRect(rect walk.Rectangle, x1, y1, x2, y2 float64) (walk.Point, walk.Point, bool) {
+	left := float64(rect.X)
+	right := float64(rect.X + rect.Width)
+	top := float64(rect.Y)
+	bottom := float64(rect.Y + rect.Height)
+	dx := x2 - x1
+	dy := y2 - y1
+	t0 := 0.0
+	t1 := 1.0
+
+	if !clipLineEdge(-dx, x1-left, &t0, &t1) ||
+		!clipLineEdge(dx, right-x1, &t0, &t1) ||
+		!clipLineEdge(-dy, y1-top, &t0, &t1) ||
+		!clipLineEdge(dy, bottom-y1, &t0, &t1) {
+		return walk.Point{}, walk.Point{}, false
+	}
+
+	return walk.Point{
+			X: int(math.Round(x1 + t0*dx)),
+			Y: int(math.Round(y1 + t0*dy)),
+		}, walk.Point{
+			X: int(math.Round(x1 + t1*dx)),
+			Y: int(math.Round(y1 + t1*dy)),
+		}, true
+}
+
+func clipLineEdge(p, q float64, t0, t1 *float64) bool {
+	if p == 0 {
+		return q >= 0
+	}
+	t := q / p
+	if p < 0 {
+		if t > *t1 {
+			return false
+		}
+		if t > *t0 {
+			*t0 = t
+		}
+		return true
+	}
+	if t < *t0 {
+		return false
+	}
+	if t < *t1 {
+		*t1 = t
+	}
+	return true
+}
+
 func yGridDivisions(chartHeight int) int {
 	if chartHeight <= aggregateChartHeight/3+2 {
 		return 1
@@ -1921,6 +2038,87 @@ func yGridDivisions(chartHeight int) int {
 		return 2
 	}
 	return 4
+}
+
+var xAxisSteps = []time.Duration{
+	time.Second,
+	2 * time.Second,
+	5 * time.Second,
+	10 * time.Second,
+	15 * time.Second,
+	30 * time.Second,
+	time.Minute,
+	2 * time.Minute,
+	5 * time.Minute,
+	10 * time.Minute,
+	15 * time.Minute,
+	30 * time.Minute,
+	time.Hour,
+	2 * time.Hour,
+	6 * time.Hour,
+	12 * time.Hour,
+	24 * time.Hour,
+}
+
+func xAxisTicks(start, end time.Time, plotWidth int) []timeAxisTick {
+	if !end.After(start) || plotWidth <= 0 {
+		return nil
+	}
+	maxLabels := maxXAxisLabels(plotWidth)
+	minLabels := min(3, maxLabels)
+	var best []timeAxisTick
+	bestCount := 0
+	for _, step := range xAxisSteps {
+		ticks := xAxisTicksForStep(start, end, step)
+		count := len(ticks)
+		if count == 0 || count > maxLabels {
+			continue
+		}
+		if count >= minLabels {
+			if best == nil || count > bestCount {
+				best = ticks
+				bestCount = count
+			}
+			continue
+		}
+		if best == nil || bestCount < minLabels && count > bestCount {
+			best = ticks
+			bestCount = count
+		}
+	}
+	if len(best) > 0 {
+		return best
+	}
+	return []timeAxisTick{{at: end, label: xAxisLabel(end)}}
+}
+
+func xAxisTicksForStep(start, end time.Time, step time.Duration) []timeAxisTick {
+	if step <= 0 {
+		return nil
+	}
+	first := start.Truncate(step)
+	if first.Before(start) {
+		first = first.Add(step)
+	}
+	seenLabels := map[string]bool{}
+	var ticks []timeAxisTick
+	for t := first; !t.After(end); t = t.Add(step) {
+		label := xAxisLabel(t)
+		if seenLabels[label] {
+			continue
+		}
+		seenLabels[label] = true
+		ticks = append(ticks, timeAxisTick{at: t, label: label})
+	}
+	return ticks
+}
+
+func maxXAxisLabels(plotWidth int) int {
+	return max(1, int(math.Floor(float64(plotWidth)*0.5/float64(xAxisLabelWidth))))
+}
+
+func xAxisLabel(t time.Time) string {
+	return t.Local().Format("15:04:05")
 }
 
 func drawWarningBars(canvas *walk.Canvas, plot walk.Rectangle, points []chartPoint, start, end time.Time) error {
