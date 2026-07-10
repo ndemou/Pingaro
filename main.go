@@ -445,9 +445,9 @@ func executableModTime() time.Time {
 
 func defaultGroupColors() []walk.Color {
 	return []walk.Color{
-		walk.RGB(0, 0, 0),
-		walk.RGB(0, 98, 218),
-		walk.RGB(133, 0, 135),
+		walk.RGB(0, 154, 222),
+		walk.RGB(175, 89, 186),
+		walk.RGB(255, 31, 91),
 	}
 }
 

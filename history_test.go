@@ -65,9 +65,9 @@ func TestFormatBuildInfoFallsBackToExecutableTime(t *testing.T) {
 func TestDefaultGroupColors(t *testing.T) {
 	got := defaultGroupColors()
 	want := []walk.Color{
-		walk.RGB(0, 0, 0),
-		walk.RGB(0, 98, 218),
-		walk.RGB(133, 0, 135),
+		walk.RGB(0, 154, 222),
+		walk.RGB(175, 89, 186),
+		walk.RGB(255, 31, 91),
 	}
 	if len(got) != len(want) {
 		t.Fatalf("len(defaultGroupColors) = %d, want %d", len(got), len(want))
