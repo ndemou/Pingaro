@@ -65,6 +65,7 @@ const (
 	realtimeBarHighlightPadding       = 2
 	realtimePixelsPerSample           = realtimeBarWidth + 2*realtimeBarHighlightPadding
 	realtimeLossMarkerSize            = 6
+	realtimeLossMarkerStrokeWidth     = 2
 	realtimeLossMarkerYOffset         = 8
 )
 
@@ -445,8 +446,8 @@ func executableModTime() time.Time {
 func defaultGroupColors() []walk.Color {
 	return []walk.Color{
 		walk.RGB(0, 0, 0),
+		walk.RGB(0, 98, 218),
 		walk.RGB(133, 0, 135),
-		walk.RGB(40, 124, 39),
 	}
 }
 
@@ -2198,14 +2199,26 @@ func realtimeLossMarkerRect(plot walk.Rectangle, barX int, groupIndex int, yMin,
 
 func drawRealtimeLossMarker(canvas *walk.Canvas, plot walk.Rectangle, rect walk.Rectangle, brush walk.Brush) error {
 	for i := 0; i < realtimeLossMarkerSize; i++ {
-		if err := fillClippedRectanglePixels(canvas, plot, walk.Rectangle{X: rect.X + i, Y: rect.Y + i, Width: 1, Height: 1}, brush); err != nil {
+		y := rect.Y + min(i, realtimeLossMarkerSize-realtimeLossMarkerStrokeWidth)
+		mainX := rect.X + min(i, realtimeLossMarkerSize-realtimeLossMarkerStrokeWidth)
+		if err := fillRealtimeLossMarkerStroke(canvas, plot, rect, mainX, y, brush); err != nil {
 			return err
 		}
-		if err := fillClippedRectanglePixels(canvas, plot, walk.Rectangle{X: rect.X + realtimeLossMarkerSize - 1 - i, Y: rect.Y + i, Width: 1, Height: 1}, brush); err != nil {
+		antiX := rect.X + max(0, realtimeLossMarkerSize-realtimeLossMarkerStrokeWidth-i)
+		if err := fillRealtimeLossMarkerStroke(canvas, plot, rect, antiX, y, brush); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func fillRealtimeLossMarkerStroke(canvas *walk.Canvas, plot walk.Rectangle, marker walk.Rectangle, x, y int, brush walk.Brush) error {
+	stroke := walk.Rectangle{X: x, Y: y, Width: realtimeLossMarkerStrokeWidth, Height: realtimeLossMarkerStrokeWidth}
+	clipped, ok := clippedRectanglePixels(stroke, marker)
+	if !ok {
+		return nil
+	}
+	return fillClippedRectanglePixels(canvas, plot, clipped, brush)
 }
 
 func realtimeBarSlotLeft(plot walk.Rectangle, sampleIndex, sampleCount int) int {

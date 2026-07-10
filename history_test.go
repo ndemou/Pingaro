@@ -66,8 +66,8 @@ func TestDefaultGroupColors(t *testing.T) {
 	got := defaultGroupColors()
 	want := []walk.Color{
 		walk.RGB(0, 0, 0),
+		walk.RGB(0, 98, 218),
 		walk.RGB(133, 0, 135),
-		walk.RGB(40, 124, 39),
 	}
 	if len(got) != len(want) {
 		t.Fatalf("len(defaultGroupColors) = %d, want %d", len(got), len(want))
@@ -500,6 +500,9 @@ func TestRealtimeLossMarkerRectStaggersByGroup(t *testing.T) {
 
 	if group1.Width != realtimeLossMarkerSize || group1.Height != realtimeLossMarkerSize {
 		t.Fatalf("loss marker size = %dx%d, want %dx%d", group1.Width, group1.Height, realtimeLossMarkerSize, realtimeLossMarkerSize)
+	}
+	if realtimeLossMarkerStrokeWidth != 2 {
+		t.Fatalf("loss marker stroke width = %d, want 2", realtimeLossMarkerStrokeWidth)
 	}
 	if group1.X != barX+realtimeBarWidth/2-realtimeLossMarkerSize/2 {
 		t.Fatalf("loss marker x = %d, want centered on bar", group1.X)
