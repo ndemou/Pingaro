@@ -281,12 +281,12 @@ type app struct {
 }
 
 var useProfiles = []useProfile{
-	{Name: "Browsing & Email", RTT: [3]float64{250, 500, 1000}, Loss: [3]float64{3, 8, 15}, Jitter: [3]float64{80, 150, 300}, DefaultSelected: true},
-	{Name: "Remote Desktop", RTT: [3]float64{120, 200, 350}, Loss: [3]float64{1, 3, 8}, Jitter: [3]float64{30, 60, 120}},
-	{Name: "Audio Calls", RTT: [3]float64{120, 180, 300}, Loss: [3]float64{1, 3, 6}, Jitter: [3]float64{20, 40, 80}, DefaultSelected: true, ShowsJitter: true},
-	{Name: "Video Calls", RTT: [3]float64{150, 250, 400}, Loss: [3]float64{2, 5, 10}, Jitter: [3]float64{30, 60, 120}, DefaultSelected: true, ShowsJitter: true},
-	{Name: "Online Gaming", RTT: [3]float64{80, 140, 220}, Loss: [3]float64{0.5, 1.5, 4}, Jitter: [3]float64{15, 30, 60}, DefaultSelected: true},
-	{Name: "Superhuman Gaming", RTT: [3]float64{40, 80, 140}, Loss: [3]float64{0.2, 1, 2.5}, Jitter: [3]float64{8, 18, 35}},
+	{Name: "Browsing & Email", RTT: [3]float64{150, 300, 600}, Loss: [3]float64{0.5, 2, 5}, Jitter: [3]float64{600, 600, 600}, DefaultSelected: true},
+	{Name: "Remote Desktop", RTT: [3]float64{100, 150, 220}, Loss: [3]float64{1, 2, 3}, Jitter: [3]float64{15, 30, 50}},
+	{Name: "Audio Calls", RTT: [3]float64{100, 150, 250}, Loss: [3]float64{1, 2, 3}, Jitter: [3]float64{20, 30, 50}, DefaultSelected: true, ShowsJitter: true},
+	{Name: "Video Calls", RTT: [3]float64{100, 150, 250}, Loss: [3]float64{1, 2, 3}, Jitter: [3]float64{20, 30, 50}, DefaultSelected: true, ShowsJitter: true},
+	{Name: "Online Gaming", RTT: [3]float64{50, 80, 120}, Loss: [3]float64{0.5, 1, 2}, Jitter: [3]float64{10, 20, 30}, DefaultSelected: true},
+	{Name: "Superhuman Gaming", RTT: [3]float64{20, 35, 60}, Loss: [3]float64{0.1, 0.5, 1}, Jitter: [3]float64{5, 10, 20}},
 }
 
 var useProfileAliases = map[string]string{

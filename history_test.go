@@ -678,16 +678,47 @@ func TestDefaultUseTypesExcludeRemoteDesktopAndSuperhumanGaming(t *testing.T) {
 	}
 }
 
+func TestUseProfileThresholds(t *testing.T) {
+	tests := []struct {
+		name   string
+		rtt    [3]float64
+		loss   [3]float64
+		jitter [3]float64
+	}{
+		{name: "Browsing & Email", rtt: [3]float64{150, 300, 600}, loss: [3]float64{0.5, 2, 5}, jitter: [3]float64{600, 600, 600}},
+		{name: "Remote Desktop", rtt: [3]float64{100, 150, 220}, loss: [3]float64{1, 2, 3}, jitter: [3]float64{15, 30, 50}},
+		{name: "Audio Calls", rtt: [3]float64{100, 150, 250}, loss: [3]float64{1, 2, 3}, jitter: [3]float64{20, 30, 50}},
+		{name: "Video Calls", rtt: [3]float64{100, 150, 250}, loss: [3]float64{1, 2, 3}, jitter: [3]float64{20, 30, 50}},
+		{name: "Online Gaming", rtt: [3]float64{50, 80, 120}, loss: [3]float64{0.5, 1, 2}, jitter: [3]float64{10, 20, 30}},
+		{name: "Superhuman Gaming", rtt: [3]float64{20, 35, 60}, loss: [3]float64{0.1, 0.5, 1}, jitter: [3]float64{5, 10, 20}},
+	}
+	for _, tt := range tests {
+		got, ok := profileFor(tt.name)
+		if !ok {
+			t.Fatalf("profileFor(%q) returned false", tt.name)
+		}
+		if got.RTT != tt.rtt {
+			t.Fatalf("%s RTT thresholds = %v, want %v", tt.name, got.RTT, tt.rtt)
+		}
+		if got.Loss != tt.loss {
+			t.Fatalf("%s loss thresholds = %v, want %v", tt.name, got.Loss, tt.loss)
+		}
+		if got.Jitter != tt.jitter {
+			t.Fatalf("%s jitter thresholds = %v, want %v", tt.name, got.Jitter, tt.jitter)
+		}
+	}
+}
+
 func TestProfileForUsesUsesMostDemandingThresholds(t *testing.T) {
 	got := profileForUses([]string{"Browsing & Email", "Online Gaming", "Video Calls"})
-	if got.RTT != [3]float64{80, 140, 220} {
-		t.Fatalf("RTT thresholds = %v, want [80 140 220]", got.RTT)
+	if got.RTT != [3]float64{50, 80, 120} {
+		t.Fatalf("RTT thresholds = %v, want [50 80 120]", got.RTT)
 	}
-	if got.Loss != [3]float64{0.5, 1.5, 4} {
-		t.Fatalf("loss thresholds = %v, want [0.5 1.5 4]", got.Loss)
+	if got.Loss != [3]float64{0.5, 1, 2} {
+		t.Fatalf("loss thresholds = %v, want [0.5 1 2]", got.Loss)
 	}
-	if got.Jitter != [3]float64{15, 30, 60} {
-		t.Fatalf("jitter thresholds = %v, want [15 30 60]", got.Jitter)
+	if got.Jitter != [3]float64{10, 20, 30} {
+		t.Fatalf("jitter thresholds = %v, want [10 20 30]", got.Jitter)
 	}
 }
 
