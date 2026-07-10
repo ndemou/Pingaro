@@ -574,19 +574,20 @@ func TestAggregateChartTimeRangeDoesNotScrollWhenEmpty(t *testing.T) {
 	}
 }
 
-func TestAggregateChartTimeRangeStartsAtPreferredSpacing(t *testing.T) {
+func TestAggregateChartTimeRangeRightAnchorsSparseDataAtPreferredSpacing(t *testing.T) {
 	start := time.Date(2026, time.July, 9, 12, 0, 0, 0, time.Local)
 	points := []chartPoint{
 		{at: start, groupIndex: 0},
 		{at: start.Add(2 * time.Minute), groupIndex: 0},
 	}
 	gotStart, gotEnd := aggregateChartTimeRange(points, 240, 2*time.Minute, time.Time{})
-	if !gotStart.Equal(start) {
-		t.Fatalf("aggregate start = %v, want %v", gotStart, start)
-	}
-	wantEnd := start.Add(2 * time.Minute * time.Duration(240/aggregatePreferredPixelsPerSample-1))
+	wantEnd := points[len(points)-1].at
 	if !gotEnd.Equal(wantEnd) {
 		t.Fatalf("aggregate end = %v, want %v", gotEnd, wantEnd)
+	}
+	wantStart := wantEnd.Add(-2 * time.Minute * time.Duration(240/aggregatePreferredPixelsPerSample-1))
+	if !gotStart.Equal(wantStart) {
+		t.Fatalf("aggregate start = %v, want %v", gotStart, wantStart)
 	}
 }
 

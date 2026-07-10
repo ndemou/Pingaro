@@ -1956,9 +1956,9 @@ func aggregateChartTimeRange(points []chartPoint, plotWidth int, period time.Dur
 	start := points[0].at
 	end := points[len(points)-1].at
 	if aggregateMaxPointsPerGroup(points) <= preferredPoints {
-		end = start.Add(period * time.Duration(max(1, preferredPoints-1)))
-		if points[len(points)-1].at.After(end) {
-			end = points[len(points)-1].at
+		start = end.Add(-period * time.Duration(max(1, preferredPoints-1)))
+		if points[0].at.Before(start) {
+			start = points[0].at
 		}
 	}
 	if !end.After(start) {

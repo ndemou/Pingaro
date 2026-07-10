@@ -583,7 +583,7 @@
         <li>When jitter is hidden, its vertical space is redistributed to visible charts.</li>
         <li>Loss and jitter charts can shrink when their data does not need full height, with the saved space redistributed to other charts.</li>
         <li>Adaptive chart heights are layout stretch weights, not hard widget minimum heights; layout updates, history loads, start/stop actions, and jitter visibility changes must not increase the window height chosen by the user.</li>
-        <li>Aggregate charts use 6 pixels as the minimum horizontal spacing per sample and prefer 24 pixels when data is sparse. They keep an empty chart's time range fixed, compress point spacing as aggregate samples accumulate, and only scroll once the current plot cannot preserve the 6-pixel minimum.</li>
+        <li>Aggregate charts use 6 pixels as the minimum horizontal spacing per sample and prefer 24 pixels when data is sparse. They keep an empty chart's time range fixed, right-anchor sparse samples so the newest aggregate appears at the right edge and prior samples fill leftward, compress point spacing as aggregate samples accumulate, and only scroll once the current plot cannot preserve the 6-pixel minimum.</li>
         <li>Aggregate point retention is capped per target group at the current monitor width in pixels divided by the 6-pixel minimum sample spacing, with the initial window width used as a fallback when the monitor width is unavailable.</li>
         <li>Y-axis scaling uses bucketed maxima so the graph stays stable while still covering the visible data.</li>
       </ul>
@@ -758,6 +758,8 @@
         <div>Changed the live latency graph from line series to 8-pixel sample slots with 4-pixel bars, 2-pixel severity highlight margins, low-to-high multi-group delta bars, and group-colored loss crosses.</div>
         <div><strong>Group palette and loss markers</strong></div>
         <div>Changed group 2 to <code>#0062da</code>, group 3 to <code>#850087</code>, and doubled the realtime loss cross stroke to 2 pixels.</div>
+        <div><strong>Aggregate fill direction</strong></div>
+        <div>Changed sparse aggregate charts to fill right to left by keeping the newest p95, loss, and jitter points at the right edge while preferred spacing leaves empty room to the left.</div>
       </div>
     </section>
   </main>
