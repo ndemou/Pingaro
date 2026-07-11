@@ -226,6 +226,7 @@ type app struct {
 	autosavePath      string
 	historyViewEnd    time.Time
 	startedAt         time.Time
+	sessionID         uint64
 	sessionPings      int
 	rttChartHeight    int
 	p95ChartHeight    int
@@ -618,7 +619,9 @@ func (a *app) start() {
 	a.setRunning(true)
 	a.updateCurrentLabel()
 	a.invalidateCharts()
-	go a.pingLoop(ctx, groups, pps, aggSeconds)
+	a.sessionID++
+	sessionID := a.sessionID
+	go a.pingLoop(ctx, groups, pps, aggSeconds, sessionID)
 }
 
 func (a *app) stop() {
@@ -743,48 +746,50 @@ func groupSummary(groups []targetGroup) string {
 	return strings.Join(names, ", ")
 }
 
-func (a *app) pingLoop(ctx context.Context, groups []targetGroup, pps, aggSeconds int) {
+func (a *app) pingLoop(ctx context.Context, groups []targetGroup, pps, aggSeconds int, sessionID uint64) {
 	period := time.Second / time.Duration(pps)
 	if period < 50*time.Millisecond {
 		period = 50 * time.Millisecond
 	}
-	states := make([]streamState, len(groups))
-	for i, g := range groups {
-		states[i] = streamState{
+	states := make(map[monitor.GroupID]*streamState, len(groups))
+	monitorGroups := make([]monitor.Group, 0, len(groups))
+	targetCount := 0
+	for _, g := range groups {
+		states[g.ID] = &streamState{
 			groupID:       g.ID,
 			minRTT:        math.MaxInt,
 			targetLabel:   g.Name,
 			aggSeconds:    aggSeconds,
 			pingsPerBatch: pps,
 		}
+		monitorGroups = append(monitorGroups, monitor.Group{ID: g.ID, Name: g.Name, Targets: g.Targets})
+		targetCount += len(g.Targets)
 	}
-	ticker := time.NewTicker(period)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
+	perTargetLimit := monitor.DefaultPerTargetOutstandingLimit(monitor.DefaultReplyTimeout, period)
+	scheduler := monitor.NewScheduler(monitor.SchedulerConfig{
+		Clock:                monitor.RealClock{},
+		Prober:               probe.NewExecProber(),
+		SessionID:            sessionID,
+		Interval:             period,
+		ReplyTimeout:         monitor.DefaultReplyTimeout,
+		PerTargetOutstanding: perTargetLimit,
+		GlobalOutstanding:    monitor.DefaultGlobalOutstandingLimit(targetCount, perTargetLimit),
+	})
+	scheduler.Run(ctx, monitorGroups, func(result monitor.BatchResult) {
+		if ctx.Err() != nil {
 			return
-		case t := <-ticker.C:
-			events := make([]sampleEvent, len(groups))
-			var wg sync.WaitGroup
-			for i, g := range groups {
-				i, g := i, g
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					result := pingBatch(ctx, g.Targets, g.Name, t)
-					events[i] = states[i].accept(result)
-				}()
-			}
-			wg.Wait()
-			a.Synchronize(func() {
-				for _, ev := range events {
-					a.accept(ev)
-				}
-			})
 		}
-	}
+		state := states[result.GroupID]
+		if state == nil {
+			return
+		}
+		ev := state.accept(pingResultFromBatchResult(result))
+		a.Synchronize(func() {
+			if ctx.Err() == nil {
+				a.accept(ev)
+			}
+		})
+	})
 }
 
 func (a *app) accept(ev sampleEvent) {
@@ -2528,6 +2533,20 @@ func pingResultFromOutcome(outcome probe.Outcome) pingResult {
 		destination: destination,
 		kind:        outcome.Kind(),
 		warning:     outcome.Detail(),
+	}
+}
+
+func pingResultFromBatchResult(result monitor.BatchResult) pingResult {
+	rtt := 0
+	if result.Kind == probe.OutcomeReply {
+		rtt = max(1, int(math.Round(float64(result.RTT)/float64(time.Millisecond))))
+	}
+	return pingResult{
+		sentAt:      result.SentAt,
+		rtt:         rtt,
+		destination: result.GroupName,
+		kind:        result.Kind,
+		warning:     result.Warning,
 	}
 }
 

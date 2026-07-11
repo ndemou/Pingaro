@@ -447,6 +447,16 @@
         <li>Internally, probe outcomes distinguish replies, network loss, cancellation, local failures, and intentionally not-sent probes. Only timeout, unreachable, and TTL-expired outcomes count as packet loss.</li>
         <li>Lost samples are tracked with explicit state in memory. Version-1 history remains compatible: saved lost samples still use the legacy <code>rtt: 9999</code> representation, and loading treats <code>lost: true</code> as authoritative.</li>
       </ul>
+
+      <h3>Scheduling</h3>
+      <ul>
+        <li>Probe batches are scheduled at fixed intervals from the intended send time, starting immediately when monitoring begins.</li>
+        <li>Scheduling does not wait for previous replies. Requests may overlap, and each request receives a 500 ms reply deadline.</li>
+        <li>Replies completed at or before the deadline are on time; replies completed after the deadline cannot modify an already finalized sample.</li>
+        <li>Outstanding requests are bounded per target and globally. When a limit is reached, Pingaro records a local not-sent outcome instead of blocking the schedule, and that outcome is not packet loss.</li>
+        <li>If the process is delayed or resumes after missed intervals, Pingaro skips old slots instead of sending a catch-up burst.</li>
+        <li>Each monitoring run has a session ID so late results from a previous run cannot be accepted into a newer run.</li>
+      </ul>
     </section>
 
     <section id="profiles">
@@ -768,6 +778,8 @@
         <div>Updated RTT, loss, and jitter thresholds for Browsing &amp; Email, Remote Desktop, Audio Calls, Video Calls, Online Gaming, and Superhuman Gaming.</div>
         <div><strong>Typed probe outcomes</strong></div>
         <div>Changed the internal measurement model to use typed outcomes and explicit reply/loss state instead of status strings and a magic lost RTT value, while preserving version-1 history compatibility.</div>
+        <div><strong>Fixed-cadence scheduler</strong></div>
+        <div>Changed monitoring to schedule probe batches at fixed intended times with overlapping outstanding requests, a 500 ms reply deadline, bounded outstanding counts, no catch-up bursts after delays, and session isolation for late results.</div>
       </div>
     </section>
   </main>
