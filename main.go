@@ -518,10 +518,10 @@ func (a *app) run() error {
 						Layout:        VBox{Margins: Margins{Left: 4, Top: 4, Right: 4, Bottom: 4}, Spacing: 0},
 						Children: []Widget{
 							VSpacer{Size: 2},
-							CustomWidget{AssignTo: &a.rttChart, MinSize: chartWidgetMinSize(), StretchFactor: rttChartHeight, InvalidatesOnResize: true, PaintPixels: a.paintRTT},
-							CustomWidget{AssignTo: &a.p95Chart, MinSize: chartWidgetMinSize(), StretchFactor: aggregateChartHeight, InvalidatesOnResize: true, PaintPixels: a.paintP95},
-							CustomWidget{AssignTo: &a.lossChart, MinSize: chartWidgetMinSize(), StretchFactor: aggregateChartHeight, InvalidatesOnResize: true, PaintPixels: a.paintLoss},
-							CustomWidget{AssignTo: &a.jitterChart, MinSize: chartWidgetMinSize(), StretchFactor: aggregateChartHeight, InvalidatesOnResize: true, PaintPixels: a.paintJitter},
+							CustomWidget{AssignTo: &a.rttChart, MinSize: chartWidgetMinSize(), StretchFactor: rttChartHeight, InvalidatesOnResize: true, PaintMode: PaintBuffered, PaintPixels: a.paintRTT},
+							CustomWidget{AssignTo: &a.p95Chart, MinSize: chartWidgetMinSize(), StretchFactor: aggregateChartHeight, InvalidatesOnResize: true, PaintMode: PaintBuffered, PaintPixels: a.paintP95},
+							CustomWidget{AssignTo: &a.lossChart, MinSize: chartWidgetMinSize(), StretchFactor: aggregateChartHeight, InvalidatesOnResize: true, PaintMode: PaintBuffered, PaintPixels: a.paintLoss},
+							CustomWidget{AssignTo: &a.jitterChart, MinSize: chartWidgetMinSize(), StretchFactor: aggregateChartHeight, InvalidatesOnResize: true, PaintMode: PaintBuffered, PaintPixels: a.paintJitter},
 						},
 					},
 				},
@@ -1571,7 +1571,11 @@ func (a *app) rttPoints() ([]chartPoint, time.Time, float64) {
 
 func (a *app) paintRTT(canvas *walk.Canvas, bounds walk.Rectangle) error {
 	points, now, _ := a.rttPoints()
-	headerRect, chartRect := splitChartBounds(a.rttChart.ClientBoundsPixels())
+	clientRect := a.rttChart.ClientBoundsPixels()
+	if err := drawChartBackground(canvas, clientRect); err != nil {
+		return err
+	}
+	headerRect, chartRect := splitChartBounds(clientRect)
 	if err := drawChartHeader(canvas, headerRect, "Latency (live)", lastItems(points, "ms", true)); err != nil {
 		return err
 	}
@@ -1594,7 +1598,11 @@ func (a *app) p95Points() ([]chartPoint, float64) {
 
 func (a *app) paintP95(canvas *walk.Canvas, bounds walk.Rectangle) error {
 	points, maxValue := a.p95Points()
-	headerRect, chartRect := splitChartBounds(a.p95Chart.ClientBoundsPixels())
+	clientRect := a.p95Chart.ClientBoundsPixels()
+	if err := drawChartBackground(canvas, clientRect); err != nil {
+		return err
+	}
+	headerRect, chartRect := splitChartBounds(clientRect)
 	if err := drawChartHeader(canvas, headerRect, "Latency per "+periodLabel(a.period)+" (p95 of RTT)", lastItems(points, "ms", false)); err != nil {
 		return err
 	}
@@ -1612,7 +1620,11 @@ func (a *app) lossPoints() []chartPoint {
 
 func (a *app) paintLoss(canvas *walk.Canvas, bounds walk.Rectangle) error {
 	points := a.lossPoints()
-	headerRect, chartRect := splitChartBounds(a.lossChart.ClientBoundsPixels())
+	clientRect := a.lossChart.ClientBoundsPixels()
+	if err := drawChartBackground(canvas, clientRect); err != nil {
+		return err
+	}
+	headerRect, chartRect := splitChartBounds(clientRect)
 	if err := drawChartHeader(canvas, headerRect, "Packet loss per "+periodLabel(a.period)+" (%)", lastItems(points, "%", false)); err != nil {
 		return err
 	}
@@ -1631,7 +1643,11 @@ func (a *app) jitterPoints() ([]chartPoint, float64) {
 
 func (a *app) paintJitter(canvas *walk.Canvas, bounds walk.Rectangle) error {
 	points, maxValue := a.jitterPoints()
-	headerRect, chartRect := splitChartBounds(a.jitterChart.ClientBoundsPixels())
+	clientRect := a.jitterChart.ClientBoundsPixels()
+	if err := drawChartBackground(canvas, clientRect); err != nil {
+		return err
+	}
+	headerRect, chartRect := splitChartBounds(clientRect)
 	if err := drawChartHeader(canvas, headerRect, "One-way jitter per "+periodLabel(a.period)+" (p95)", lastItems(points, "ms", false)); err != nil {
 		return err
 	}
@@ -2415,6 +2431,15 @@ func measureTextWidthPixels(canvas *walk.Canvas, font *walk.Font, text string) (
 		return 0, err
 	}
 	return bounds.Width, nil
+}
+
+func drawChartBackground(canvas *walk.Canvas, rect walk.Rectangle) error {
+	bg, err := walk.NewSolidColorBrush(walk.RGB(255, 255, 255))
+	if err != nil {
+		return err
+	}
+	defer bg.Dispose()
+	return canvas.FillRectanglePixels(bg, rect)
 }
 
 func drawPanel(canvas *walk.Canvas, rect walk.Rectangle) error {
