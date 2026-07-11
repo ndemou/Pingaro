@@ -75,6 +75,8 @@ const (
 	realtimePixelsPerSample           = realtimeBarWidth + 2*realtimeBarHighlightPadding
 	realtimeLossMarkerSize            = 10
 	realtimeLossMarkerStrokeWidth     = 2
+	realtimeLossSeverityWindowSize    = 10
+	realtimeOutOfOrderLookbackSlots   = 64
 )
 
 var (
@@ -1757,20 +1759,18 @@ func (a *app) rttPoints() ([]chartPoint, time.Time, float64) {
 	if !a.historyViewEnd.IsZero() {
 		now = a.historyViewEnd
 	}
-	points := make([]chartPoint, 0, len(a.samples))
+	samples := realtimeDisplaySampleEvents(a.samples, now, a.realtimeDisplaySlotLimit())
+	points := make([]chartPoint, 0, len(samples))
 	lossWindows := map[int][]bool{}
 	profile := a.selectedProfile()
-	for _, s := range a.samples {
-		if s.at.Before(now.Add(-120 * time.Second)) {
-			continue
-		}
+	for _, s := range samples {
 		groupIndex := s.groupID.Index()
 		value := 0.0
 		hasValue := false
 		severity := 0
 		lossWindows[groupIndex] = append(lossWindows[groupIndex], s.lost)
-		if len(lossWindows[groupIndex]) > 10 {
-			lossWindows[groupIndex] = lossWindows[groupIndex][len(lossWindows[groupIndex])-10:]
+		if len(lossWindows[groupIndex]) > realtimeLossSeverityWindowSize {
+			lossWindows[groupIndex] = lossWindows[groupIndex][len(lossWindows[groupIndex])-realtimeLossSeverityWindowSize:]
 		}
 		if s.lost {
 			lostCount := 0
@@ -1789,6 +1789,80 @@ func (a *app) rttPoints() ([]chartPoint, time.Time, float64) {
 	}
 	maxValue := bucketedYMax(points, rttYMaxBuckets)
 	return points, now, maxValue
+}
+
+func (a *app) realtimeDisplaySlotLimit() int {
+	return realtimeSampleCapacity(a.realtimePlotWidthPixels())
+}
+
+func (a *app) realtimePlotWidthPixels() int {
+	if a != nil && a.rttChart != nil {
+		client := a.rttChart.ClientBoundsPixels()
+		if client.Width > 0 {
+			_, chart := splitChartBounds(client)
+			return plotBounds(chart).Width
+		}
+	}
+	width := initialWindowWidth
+	if a != nil {
+		width = a.currentScreenWidthPixels()
+	}
+	_, chart := splitChartBounds(walk.Rectangle{Width: width, Height: rttChartHeight})
+	return plotBounds(chart).Width
+}
+
+func realtimeDisplaySampleEvents(samples []sampleEvent, now time.Time, visibleSlots int) []sampleEvent {
+	if len(samples) == 0 {
+		return nil
+	}
+	if now.IsZero() {
+		now = time.Now()
+	}
+	cutoff := now.Add(-120 * time.Second)
+	keepSlots := max(1, visibleSlots) + realtimeLossSeverityWindowSize
+	scanSlots := keepSlots + realtimeOutOfOrderLookbackSlots
+	slotKeys := map[int64]struct{}{}
+	slotCount := 0
+	eligible := make([]sampleEvent, 0, min(len(samples), scanSlots*3))
+	for i := len(samples) - 1; i >= 0; i-- {
+		s := samples[i]
+		if s.at.Before(cutoff) {
+			continue
+		}
+		eligible = append(eligible, s)
+		key := s.at.UnixNano()
+		if _, ok := slotKeys[key]; !ok {
+			slotKeys[key] = struct{}{}
+			slotCount++
+		}
+		if slotCount >= scanSlots {
+			break
+		}
+	}
+	if len(eligible) == 0 {
+		return nil
+	}
+	sort.SliceStable(eligible, func(i, j int) bool {
+		if eligible[i].at.Equal(eligible[j].at) {
+			return eligible[i].groupID.Index() < eligible[j].groupID.Index()
+		}
+		return eligible[i].at.Before(eligible[j].at)
+	})
+
+	slotCount = 0
+	start := 0
+	var previous time.Time
+	for i := len(eligible) - 1; i >= 0; i-- {
+		if i == len(eligible)-1 || !eligible[i].at.Equal(previous) {
+			slotCount++
+			previous = eligible[i].at
+		}
+		if slotCount > keepSlots {
+			start = i + 1
+			break
+		}
+	}
+	return eligible[start:]
 }
 
 func (a *app) paintRTT(canvas *walk.Canvas, bounds walk.Rectangle) error {

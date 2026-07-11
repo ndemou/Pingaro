@@ -596,6 +596,7 @@
         <li>Line charts project off-scale values to their true position and clip line segments at the plot edge instead of clamping the point to the maximum Y-axis value.</li>
         <li>X-axis labels use a shared time-tick selector with sensible time steps, second-level labels, at least three labels when space allows, and a density cap of roughly half the plot width.</li>
         <li>Measurement samples may be collected faster than the UI is painted. Chart and status rendering is coalesced to at most 10 updates per second so high-rate sampling remains readable and avoids unnecessary repaint work.</li>
+        <li>The live chart renders from a bounded, timestamp-sorted display window: the newest visible sample slots plus a small loss-severity lookback. This keeps high-rate sessions responsive while preserving the separate history/autosave sample stream.</li>
         <li>When jitter is hidden, its vertical space is redistributed to visible charts.</li>
         <li>Loss and jitter charts can shrink when their data does not need full height, with the saved space redistributed to other charts.</li>
         <li>Adaptive chart heights are layout stretch weights, not hard widget minimum heights; layout updates, history loads, start/stop actions, and jitter visibility changes must not increase the window height chosen by the user.</li>

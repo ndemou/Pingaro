@@ -10,6 +10,7 @@ import (
 
 	"github.com/lxn/walk"
 	"github.com/lxn/win"
+	"pingaro/internal/monitor"
 )
 
 func TestParseHistoryRecordsMixedPrettyAndLineJSON(t *testing.T) {
@@ -535,6 +536,51 @@ func TestVisibleRealtimeBarSamplesGroupsByTimestampAndKeepsNewestCapacity(t *tes
 	}
 	if !got[0].at.Equal(start.Add(time.Second)) || !got[1].at.Equal(start.Add(2*time.Second)) {
 		t.Fatalf("visible samples kept wrong timestamps: got %v and %v", got[0].at, got[1].at)
+	}
+}
+
+func TestRealtimeDisplaySampleEventsLimitsBacklogAndSortsByTimestamp(t *testing.T) {
+	start := time.Date(2026, time.July, 9, 12, 0, 0, 0, time.Local)
+	samples := make([]sampleEvent, 0, 30)
+	for i := 0; i < 15; i++ {
+		at := start.Add(time.Duration(i) * time.Second)
+		samples = append(samples,
+			sampleEvent{at: at, groupID: monitor.GroupID(1), replied: true},
+			sampleEvent{at: at, groupID: monitor.GroupID(0), replied: true},
+		)
+	}
+	unsorted := append([]sampleEvent(nil), samples[20:]...)
+	unsorted = append(unsorted, samples[:20]...)
+
+	got := realtimeDisplaySampleEvents(unsorted, start.Add(14*time.Second), 2)
+	if len(got) != 24 {
+		t.Fatalf("display sample count = %d, want 24", len(got))
+	}
+	if !got[0].at.Equal(start.Add(3 * time.Second)) {
+		t.Fatalf("first display sample at %v, want %v", got[0].at, start.Add(3*time.Second))
+	}
+	if !got[len(got)-1].at.Equal(start.Add(14 * time.Second)) {
+		t.Fatalf("last display sample at %v, want %v", got[len(got)-1].at, start.Add(14*time.Second))
+	}
+	for i := 1; i < len(got); i++ {
+		if got[i].at.Before(got[i-1].at) {
+			t.Fatalf("display samples are not timestamp sorted at index %d: %v before %v", i, got[i].at, got[i-1].at)
+		}
+		if got[i].at.Equal(got[i-1].at) && got[i].groupID.Index() < got[i-1].groupID.Index() {
+			t.Fatalf("same-timestamp samples are not group sorted at index %d", i)
+		}
+	}
+}
+
+func TestRealtimeDisplaySampleEventsDropsOldSamples(t *testing.T) {
+	now := time.Date(2026, time.July, 9, 12, 3, 0, 0, time.Local)
+	visible := now.Add(-119 * time.Second)
+	got := realtimeDisplaySampleEvents([]sampleEvent{
+		{at: now.Add(-121 * time.Second), replied: true},
+		{at: visible, replied: true},
+	}, now, 10)
+	if len(got) != 1 || !got[0].at.Equal(visible) {
+		t.Fatalf("display samples = %+v, want only %v", got, visible)
 	}
 }
 
