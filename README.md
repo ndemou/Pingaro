@@ -24,9 +24,11 @@ If Windows shows a security warning because the executable is unsigned, choose `
 
 ## Why Use It
 
-Raw `ping.exe` output is hard to interpret over more than a few seconds. Pingaro gives you a dashboard view of the same kind of signal: live latency, aggregated p95 RTT, packet loss, and one-way jitter estimates.
+Short connection checks are hard to interpret over more than a few seconds. Pingaro gives you a dashboard view of connection quality over time: live latency, aggregated p95 RTT, packet loss, and one-way jitter estimates.
 
-When checking Internet quality, Pingaro can ping multiple well-known hosts in parallel. If at least one host replies in a batch, the batch is treated as successful and the minimum RTT is used. That makes the view less sensitive to a temporary issue on one remote host.
+When checking Internet quality, Pingaro can measure multiple well-known hosts in parallel. If at least one host replies in a batch, the batch is treated as successful and the minimum RTT is used. That makes the view less sensitive to a temporary issue on one remote host.
+
+Measurements are scheduled at a steady cadence. Replies that arrive too late are treated as lost for that sample, so the live graph reflects delayed or missing responses promptly instead of waiting for old replies to catch up.
 
 ## Typical Workflow
 
@@ -48,7 +50,7 @@ When multiple use profiles are selected, Pingaro grades good, medium, and bad me
 
 **p95 RTT** is the 95th percentile RTT for an aggregate period. It shows high latency that affects normal use without letting a single extreme outlier dominate the graph.
 
-**Loss** is the percent of ping batches with no reply.
+**Loss** is the percent of measurement batches with no on-time reply.
 
 **One-way jitter** is estimated as half the two-way jitter.
 
