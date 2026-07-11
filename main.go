@@ -3,22 +3,17 @@ package main
 //go:generate go run github.com/akavel/rsrc@v0.10.2 -manifest pingaro.exe.manifest -ico assets/pingaro.ico -o rsrc.syso
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"log"
 	"math"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"regexp"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 	"unsafe"
 
@@ -27,6 +22,7 @@ import (
 	"github.com/lxn/win"
 	"pingaro/internal/history"
 	"pingaro/internal/monitor"
+	"pingaro/internal/probe"
 	"pingaro/internal/profiles"
 	"pingaro/internal/settings"
 	"pingaro/internal/targets"
@@ -75,11 +71,6 @@ var (
 	rttYMaxBuckets    = []float64{4, 8, 16, 32, 64, 128, 256, 512}
 	lossYMaxBuckets   = []float64{2, 4, 8, 16, 32}
 	jitterYMaxBuckets = []float64{8, 16, 32, 64, 128, 256}
-)
-
-var (
-	reTime   = regexp.MustCompile(`time[=<]([0-9]+)ms`)
-	reTarget = regexp.MustCompile(`Reply from ([^:]+):`)
 )
 
 type pingResult struct {
@@ -2452,21 +2443,24 @@ func (s *streamState) accept(r pingResult) sampleEvent {
 	return ev
 }
 
-type pingProbeFunc func(context.Context, string, time.Time) pingResult
-
 func pingBatch(ctx context.Context, hosts []string, destination string, sentAt time.Time) pingResult {
-	return pingBatchWithProbe(ctx, hosts, destination, sentAt, pingOnce)
+	return pingBatchWithProber(ctx, hosts, destination, sentAt, probe.NewExecProber())
 }
 
-func pingBatchWithProbe(ctx context.Context, hosts []string, destination string, sentAt time.Time, probe pingProbeFunc) pingResult {
+func pingBatchWithProber(ctx context.Context, hosts []string, destination string, sentAt time.Time, prober probe.Prober) pingResult {
 	var wg sync.WaitGroup
 	ch := make(chan pingResult, len(hosts))
-	for _, h := range hosts {
-		host := h
+	for i, h := range hosts {
+		req := probe.Request{
+			ID:       uint64(i + 1),
+			Target:   h,
+			SentAt:   sentAt,
+			Deadline: sentAt.Add(2500 * time.Millisecond),
+		}
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			ch <- probe(ctx, host, sentAt)
+			ch <- pingResultFromOutcome(prober.Probe(ctx, req))
 		}()
 	}
 	wg.Wait()
@@ -2492,42 +2486,17 @@ func pingBatchWithProbe(ctx context.Context, hosts []string, destination string,
 	return best
 }
 
-func pingOnce(ctx context.Context, host string, sentAt time.Time) pingResult {
-	args := []string{"-n", "1", "-w", "1000", host}
-	if runtime.GOOS != "windows" {
-		args = []string{"-c", "1", "-W", "1", host}
+func pingResultFromOutcome(outcome probe.Outcome) pingResult {
+	rtt := outcome.RTTMilliseconds()
+	if outcome.Status() != "Success" || rtt <= 0 {
+		rtt = lostRTT
 	}
-	cctx, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
-	defer cancel()
-	cmd := exec.CommandContext(cctx, "ping", args...)
-	cmd.SysProcAttr = hiddenSysProcAttr()
-	var buf bytes.Buffer
-	cmd.Stdout = &buf
-	cmd.Stderr = &buf
-	err := cmd.Run()
-	text := buf.String()
-	if m := reTime.FindStringSubmatch(text); len(m) == 2 {
-		rtt, _ := strconv.Atoi(m[1])
-		dest := host
-		if dm := reTarget.FindStringSubmatch(text); len(dm) == 2 {
-			dest = strings.TrimSpace(dm[1])
-		}
-		return pingResult{sentAt: sentAt, rtt: max(1, rtt), destination: dest, status: "Success"}
-	}
-	status := "TimeOut"
-	if err != nil && !errors.Is(err, context.DeadlineExceeded) {
-		status = "PingFailed"
-	}
-	return pingResult{sentAt: sentAt, rtt: lostRTT, destination: host, status: status, warning: firstLine(text)}
-}
-
-func hiddenSysProcAttr() *syscall.SysProcAttr {
-	if runtime.GOOS != "windows" {
-		return nil
-	}
-	return &syscall.SysProcAttr{
-		HideWindow:    true,
-		CreationFlags: 0x08000000, // CREATE_NO_WINDOW
+	return pingResult{
+		sentAt:      outcome.Request().SentAt,
+		rtt:         rtt,
+		destination: outcome.Destination(),
+		status:      outcome.Status(),
+		warning:     outcome.Warning(),
 	}
 }
 
@@ -2599,17 +2568,6 @@ func parseInt(value string, fallback int) int {
 
 func clampInt(value, minValue, maxValue int) int {
 	return max(minValue, min(maxValue, value))
-}
-
-func firstLine(s string) string {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return ""
-	}
-	if i := strings.IndexAny(s, "\r\n"); i >= 0 {
-		return s[:i]
-	}
-	return s
 }
 
 func formatNumber(n float64) string {

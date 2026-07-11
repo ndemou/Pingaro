@@ -6,16 +6,18 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"pingaro/internal/probe"
 )
 
 func TestPingBatchSucceedsWhenOneTargetReplies(t *testing.T) {
 	at := time.Date(2026, time.July, 11, 10, 0, 0, 0, time.Local)
-	probe := fakePingProbe(map[string]pingResult{
+	prober := fakePingProber(map[string]pingResult{
 		"1.1.1.1": {sentAt: at, rtt: lostRTT, destination: "1.1.1.1", status: "TimeOut", warning: "request timed out"},
 		"8.8.8.8": {sentAt: at, rtt: 42, destination: "8.8.8.8", status: "Success"},
 	})
 
-	got := pingBatchWithProbe(context.Background(), []string{"1.1.1.1", "8.8.8.8"}, "Internet", at, probe)
+	got := pingBatchWithProber(context.Background(), []string{"1.1.1.1", "8.8.8.8"}, "Internet", at, prober)
 	if got.status != "Success" {
 		t.Fatalf("status = %q, want Success", got.status)
 	}
@@ -29,13 +31,13 @@ func TestPingBatchSucceedsWhenOneTargetReplies(t *testing.T) {
 
 func TestPingBatchSelectsMinimumRTTWhenSeveralTargetsReply(t *testing.T) {
 	at := time.Date(2026, time.July, 11, 10, 0, 0, 0, time.Local)
-	probe := fakePingProbe(map[string]pingResult{
+	prober := fakePingProber(map[string]pingResult{
 		"fast": {sentAt: at, rtt: 18, destination: "fast", status: "Success"},
 		"mid":  {sentAt: at, rtt: 40, destination: "mid", status: "Success"},
 		"slow": {sentAt: at, rtt: 90, destination: "slow", status: "Success"},
 	})
 
-	got := pingBatchWithProbe(context.Background(), []string{"slow", "fast", "mid"}, "Internet", at, probe)
+	got := pingBatchWithProber(context.Background(), []string{"slow", "fast", "mid"}, "Internet", at, prober)
 	if got.status != "Success" || got.rtt != 18 {
 		t.Fatalf("result = %+v, want Success with min RTT 18", got)
 	}
@@ -43,12 +45,12 @@ func TestPingBatchSelectsMinimumRTTWhenSeveralTargetsReply(t *testing.T) {
 
 func TestPingBatchAllFailuresAreLostAndKeepDiagnostics(t *testing.T) {
 	at := time.Date(2026, time.July, 11, 10, 0, 0, 0, time.Local)
-	probe := fakePingProbe(map[string]pingResult{
+	prober := fakePingProber(map[string]pingResult{
 		"timeout":     {sentAt: at, rtt: lostRTT, destination: "timeout", status: "TimeOut", warning: "request timed out"},
 		"unreachable": {sentAt: at, rtt: lostRTT, destination: "unreachable", status: "PingFailed", warning: "destination host unreachable"},
 	})
 
-	got := pingBatchWithProbe(context.Background(), []string{"timeout", "unreachable"}, "Internet", at, probe)
+	got := pingBatchWithProber(context.Background(), []string{"timeout", "unreachable"}, "Internet", at, prober)
 	if got.status != "failure" {
 		t.Fatalf("status = %q, want failure", got.status)
 	}
@@ -64,12 +66,12 @@ func TestPingBatchAllFailuresAreLostAndKeepDiagnostics(t *testing.T) {
 
 func TestPingBatchRetainsCancelledAndLocalFailureDiagnostics(t *testing.T) {
 	at := time.Date(2026, time.July, 11, 10, 0, 0, 0, time.Local)
-	probe := fakePingProbe(map[string]pingResult{
+	prober := fakePingProber(map[string]pingResult{
 		"cancelled": {sentAt: at, rtt: lostRTT, destination: "cancelled", status: "Cancelled", warning: "context cancelled"},
 		"local":     {sentAt: at, rtt: lostRTT, destination: "local", status: "PingFailed", warning: "local process failure"},
 	})
 
-	got := pingBatchWithProbe(context.Background(), []string{"cancelled", "local"}, "Internet", at, probe)
+	got := pingBatchWithProber(context.Background(), []string{"cancelled", "local"}, "Internet", at, prober)
 	for _, want := range []string{"cancelled: context cancelled", "local: local process failure"} {
 		if !strings.Contains(got.warning, want) {
 			t.Fatalf("warning = %q, want it to contain %q", got.warning, want)
@@ -159,14 +161,15 @@ func TestStreamStateNoLossesTrackExistingP95AndJitter(t *testing.T) {
 	}
 }
 
-func fakePingProbe(results map[string]pingResult) pingProbeFunc {
-	return func(ctx context.Context, host string, sentAt time.Time) pingResult {
-		if result, ok := results[host]; ok {
-			result.sentAt = sentAt
-			return result
-		}
-		return pingResult{sentAt: sentAt, rtt: lostRTT, destination: host, status: "TimeOut", warning: "missing fake result"}
+type fakePingProber map[string]pingResult
+
+func (p fakePingProber) Probe(ctx context.Context, req probe.Request) probe.Outcome {
+	result, ok := p[req.Target]
+	if !ok {
+		result = pingResult{rtt: lostRTT, destination: req.Target, status: "TimeOut", warning: "missing fake result"}
 	}
+	result.sentAt = req.SentAt
+	return probe.NewOutcome(req, result.rtt, result.destination, result.status, result.warning)
 }
 
 func closeFloat(a, b float64) bool {
