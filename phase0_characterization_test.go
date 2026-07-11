@@ -139,6 +139,32 @@ func TestStreamStateAcceptTracksLossMinMaxAndAggregationBoundary(t *testing.T) {
 	}
 }
 
+func TestStreamStateAcceptAllowsOneSecondAggregationBoundary(t *testing.T) {
+	at := time.Date(2026, time.July, 11, 10, 0, 0, 0, time.Local)
+	state := streamState{
+		targetLabel:   "Internet",
+		aggSeconds:    1,
+		pingsPerBatch: 2,
+		minRTT:        math.MaxInt,
+	}
+
+	first := state.accept(pingResult{sentAt: at, rtt: 100, kind: probe.OutcomeReply})
+	if first.aggregate != nil {
+		t.Fatalf("first event unexpectedly aggregated: %+v", first.aggregate)
+	}
+	second := state.accept(pingResult{sentAt: at.Add(500 * time.Millisecond), rtt: 120, kind: probe.OutcomeReply})
+	if second.aggregate != nil {
+		t.Fatalf("second event unexpectedly aggregated: %+v", second.aggregate)
+	}
+	boundary := state.accept(pingResult{sentAt: at.Add(time.Second), rtt: 140, kind: probe.OutcomeReply})
+	if boundary.aggregate == nil {
+		t.Fatal("aggregate event missing aggregate at 1s boundary")
+	}
+	if boundary.period != time.Second {
+		t.Fatalf("boundary period = %v, want 1s", boundary.period)
+	}
+}
+
 func TestStreamStateAllLossesHaveZeroRTTStatsAndFullLoss(t *testing.T) {
 	at := time.Date(2026, time.July, 11, 10, 0, 0, 0, time.Local)
 	state := streamState{targetLabel: "Internet", aggSeconds: 60, pingsPerBatch: 1, minRTT: math.MaxInt}

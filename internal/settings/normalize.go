@@ -10,9 +10,20 @@ import (
 
 const DefaultInternetTargets = "1.1.1.1, 1.1.1.2, 8.8.8.8, 8.8.4.4"
 
+const (
+	minPPS                = 1
+	maxPPS                = 50
+	minAggregationSeconds = 1
+	maxAggregationSeconds = 3600
+	minSamplesPerWindow   = 2
+)
+
 func NormalizeLoaded(cfg Config) Config {
-	cfg.PPS = clampInt(cfg.PPS, 1, 20)
-	cfg.AggregationSeconds = clampInt(cfg.AggregationSeconds, 3, 3600)
+	cfg.PPS = clampInt(cfg.PPS, minPPS, maxPPS)
+	cfg.AggregationSeconds = clampInt(cfg.AggregationSeconds, minAggregationSeconds, maxAggregationSeconds)
+	if cfg.PPS*cfg.AggregationSeconds < minSamplesPerWindow {
+		cfg.AggregationSeconds = clampInt((minSamplesPerWindow+cfg.PPS-1)/cfg.PPS, minAggregationSeconds, maxAggregationSeconds)
+	}
 	cfg.UseTypes = profiles.NormalizeUseTypes(cfg.UseTypes, cfg.UseType)
 	cfg.UseType = ""
 	cfg.Groups = NormalizeGroups(cfg.Groups)

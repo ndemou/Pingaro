@@ -42,6 +42,14 @@ const (
 	autosaveHistoryInterval   = 10 * time.Minute
 )
 
+const (
+	minMeasurementsPerSecond = 1
+	maxMeasurementsPerSecond = 50
+	minAggregationSeconds    = 1
+	maxAggregationSeconds    = 3600
+	minSamplesPerAggregation = 2
+)
+
 var (
 	appVersion   = "dev"
 	appBuildTime = ""
@@ -227,6 +235,9 @@ type app struct {
 	startedAt         time.Time
 	sessionID         uint64
 	sessionPings      int
+	lastValidPPS      int
+	lastValidAgg      int
+	updatingInputs    bool
 	rttChartHeight    int
 	p95ChartHeight    int
 	lossChartHeight   int
@@ -274,10 +285,18 @@ func usesShowJitter(names []string) bool {
 }
 
 func main() {
+	cfg := loadConfig()
+	cfg.PPS = clampInt(cfg.PPS, minMeasurementsPerSecond, maxMeasurementsPerSecond)
+	cfg.AggregationSeconds = clampInt(cfg.AggregationSeconds, minAggregationSeconds, maxAggregationSeconds)
+	if samplesPerAggregation(cfg.PPS, cfg.AggregationSeconds) < minSamplesPerAggregation {
+		cfg.AggregationSeconds = aggregationSecondsForSamples(cfg.PPS, minSamplesPerAggregation)
+	}
 	a := &app{
-		period:   120 * time.Second,
-		colors:   defaultGroupColors(),
-		settings: loadConfig(),
+		period:       120 * time.Second,
+		colors:       defaultGroupColors(),
+		settings:     cfg,
+		lastValidPPS: cfg.PPS,
+		lastValidAgg: cfg.AggregationSeconds,
 	}
 	if err := a.run(); err != nil {
 		log.Fatal(err)
@@ -464,8 +483,8 @@ func (a *app) run() error {
 							Composite{
 								Layout: VBox{MarginsZero: true, Spacing: 3},
 								Children: []Widget{
-									a.lineEditor("Measurements/sec", &a.pps, strconv.Itoa(max(1, a.settings.PPS))),
-									a.lineEditor("Aggregation window (sec)", &a.agg, strconv.Itoa(max(3, a.settings.AggregationSeconds))),
+									a.lineEditor("Measurements/sec", &a.pps, strconv.Itoa(clampInt(a.settings.PPS, minMeasurementsPerSecond, maxMeasurementsPerSecond))),
+									a.lineEditor("Aggregation window (sec)", &a.agg, strconv.Itoa(clampInt(a.settings.AggregationSeconds, minAggregationSeconds, maxAggregationSeconds))),
 								},
 							},
 							Composite{
@@ -598,8 +617,10 @@ func (a *app) start() {
 		return
 	}
 
-	pps := clampInt(parseInt(a.pps.Text(), 1), 1, 20)
-	aggSeconds := clampInt(parseInt(a.agg.Text(), 120), 3, 3600)
+	pps, aggSeconds, ok := a.validateMeasurementInputs()
+	if !ok {
+		return
+	}
 	a.saveCurrentConfig(groups, pps, aggSeconds)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -681,16 +702,98 @@ func (a *app) attachInputPersistence() {
 			edit.TextChanged().Attach(a.saveInputs)
 		}
 	}
-	for _, edit := range []*walk.LineEdit{a.pps, a.agg} {
-		if edit != nil {
-			edit.TextChanged().Attach(a.saveInputs)
-		}
+	if a.pps != nil {
+		a.pps.TextChanged().Attach(a.measurementInputsChanged)
+	}
+	if a.agg != nil {
+		a.agg.TextChanged().Attach(a.measurementInputsChanged)
 	}
 	for _, check := range a.useChecks {
 		if check != nil {
 			check.CheckedChanged().Attach(a.useTypesChanged)
 		}
 	}
+}
+
+func (a *app) measurementInputsChanged() {
+	if a.updatingInputs {
+		return
+	}
+	pps, ppsOK := parseStrictInt(a.pps.Text())
+	aggSeconds, aggOK := parseStrictInt(a.agg.Text())
+	if !ppsOK || !aggOK {
+		return
+	}
+	if pps < minMeasurementsPerSecond || pps > maxMeasurementsPerSecond {
+		walk.MsgBox(a.MainWindow, "Pingaro", measurementsPerSecondError(), walk.MsgBoxIconWarning)
+		a.setMeasurementText(a.pps, a.lastValidPPS)
+		return
+	}
+	if aggSeconds < minAggregationSeconds || aggSeconds > maxAggregationSeconds {
+		walk.MsgBox(a.MainWindow, "Pingaro", aggregationWindowError(), walk.MsgBoxIconWarning)
+		a.setMeasurementText(a.agg, a.lastValidAgg)
+		return
+	}
+	if samplesPerAggregation(pps, aggSeconds) < minSamplesPerAggregation {
+		corrected := aggregationSecondsForSamples(pps, minSamplesPerAggregation)
+		walk.MsgBox(a.MainWindow, "Pingaro", samplesPerAggregationError(pps, aggSeconds, corrected), walk.MsgBoxIconWarning)
+		a.lastValidPPS = pps
+		a.lastValidAgg = corrected
+		a.setMeasurementText(a.agg, corrected)
+		a.saveInputs()
+		return
+	}
+	a.lastValidPPS = pps
+	a.lastValidAgg = aggSeconds
+	a.saveInputs()
+}
+
+func (a *app) validateMeasurementInputs() (int, int, bool) {
+	pps, ppsOK := parseStrictInt(a.pps.Text())
+	if !ppsOK || pps < minMeasurementsPerSecond || pps > maxMeasurementsPerSecond {
+		walk.MsgBox(a.MainWindow, "Pingaro", measurementsPerSecondError(), walk.MsgBoxIconWarning)
+		a.setMeasurementText(a.pps, a.lastValidPPS)
+		return 0, 0, false
+	}
+	aggSeconds, aggOK := parseStrictInt(a.agg.Text())
+	if !aggOK || aggSeconds < minAggregationSeconds || aggSeconds > maxAggregationSeconds {
+		walk.MsgBox(a.MainWindow, "Pingaro", aggregationWindowError(), walk.MsgBoxIconWarning)
+		a.setMeasurementText(a.agg, a.lastValidAgg)
+		return 0, 0, false
+	}
+	if samplesPerAggregation(pps, aggSeconds) < minSamplesPerAggregation {
+		corrected := aggregationSecondsForSamples(pps, minSamplesPerAggregation)
+		walk.MsgBox(a.MainWindow, "Pingaro", samplesPerAggregationError(pps, aggSeconds, corrected), walk.MsgBoxIconWarning)
+		a.lastValidPPS = pps
+		a.lastValidAgg = corrected
+		a.setMeasurementText(a.agg, corrected)
+		a.saveInputs()
+		return 0, 0, false
+	}
+	a.lastValidPPS = pps
+	a.lastValidAgg = aggSeconds
+	return pps, aggSeconds, true
+}
+
+func (a *app) setMeasurementText(edit *walk.LineEdit, value int) {
+	if edit == nil {
+		return
+	}
+	a.updatingInputs = true
+	edit.SetText(strconv.Itoa(value))
+	a.updatingInputs = false
+}
+
+func measurementsPerSecondError() string {
+	return fmt.Sprintf("Measurements/sec must be an integer from %d to %d.", minMeasurementsPerSecond, maxMeasurementsPerSecond)
+}
+
+func aggregationWindowError() string {
+	return fmt.Sprintf("Aggregation window must be an integer from %d to %d seconds.", minAggregationSeconds, maxAggregationSeconds)
+}
+
+func samplesPerAggregationError(pps, aggSeconds, corrected int) string {
+	return fmt.Sprintf("Aggregation window of %d sec at %d measurements/sec gives only %d sample per aggregate. Use at least %d sec for %d samples per aggregate.", aggSeconds, pps, samplesPerAggregation(pps, aggSeconds), corrected, minSamplesPerAggregation)
 }
 
 func (a *app) useTypesChanged() {
@@ -747,8 +850,9 @@ func groupSummary(groups []targetGroup) string {
 
 func (a *app) pingLoop(ctx context.Context, groups []targetGroup, pps, aggSeconds int, sessionID uint64) {
 	period := time.Second / time.Duration(pps)
-	if period < 50*time.Millisecond {
-		period = 50 * time.Millisecond
+	minPeriod := time.Second / time.Duration(maxMeasurementsPerSecond)
+	if period < minPeriod {
+		period = minPeriod
 	}
 	states := make(map[monitor.GroupID]*streamState, len(groups))
 	monitorGroups := make([]monitor.Group, 0, len(groups))
@@ -1184,12 +1288,30 @@ func maxAggregatePointsForWidth(groupCount, screenWidth int) int {
 }
 
 func (a *app) currentConfig() savedConfig {
+	pps, aggSeconds := a.currentMeasurementValues()
 	return savedConfig{
 		Groups:             a.currentSavedGroups(),
-		PPS:                clampInt(parseInt(a.pps.Text(), 1), 1, 20),
-		AggregationSeconds: clampInt(parseInt(a.agg.Text(), 120), 3, 3600),
+		PPS:                pps,
+		AggregationSeconds: aggSeconds,
 		UseTypes:           a.selectedUseTypes(),
 	}
+}
+
+func (a *app) currentMeasurementValues() (int, int) {
+	pps, ppsOK := parseStrictInt(a.pps.Text())
+	aggSeconds, aggOK := parseStrictInt(a.agg.Text())
+	if ppsOK && aggOK &&
+		pps >= minMeasurementsPerSecond && pps <= maxMeasurementsPerSecond &&
+		aggSeconds >= minAggregationSeconds && aggSeconds <= maxAggregationSeconds &&
+		samplesPerAggregation(pps, aggSeconds) >= minSamplesPerAggregation {
+		return pps, aggSeconds
+	}
+	pps = clampInt(a.lastValidPPS, minMeasurementsPerSecond, maxMeasurementsPerSecond)
+	aggSeconds = clampInt(a.lastValidAgg, minAggregationSeconds, maxAggregationSeconds)
+	if samplesPerAggregation(pps, aggSeconds) < minSamplesPerAggregation {
+		aggSeconds = aggregationSecondsForSamples(pps, minSamplesPerAggregation)
+	}
+	return pps, aggSeconds
 }
 
 func (a *app) currentSavedGroups() []savedGroup {
@@ -1209,8 +1331,11 @@ func (a *app) currentSavedGroups() []savedGroup {
 }
 
 func (a *app) applyConfig(cfg savedConfig) {
-	cfg.PPS = clampInt(cfg.PPS, 1, 20)
-	cfg.AggregationSeconds = clampInt(cfg.AggregationSeconds, 3, 3600)
+	cfg.PPS = clampInt(cfg.PPS, minMeasurementsPerSecond, maxMeasurementsPerSecond)
+	cfg.AggregationSeconds = clampInt(cfg.AggregationSeconds, minAggregationSeconds, maxAggregationSeconds)
+	if samplesPerAggregation(cfg.PPS, cfg.AggregationSeconds) < minSamplesPerAggregation {
+		cfg.AggregationSeconds = aggregationSecondsForSamples(cfg.PPS, minSamplesPerAggregation)
+	}
 	cfg.UseTypes = normalizeUseTypes(cfg.UseTypes, cfg.UseType)
 	cfg.UseType = ""
 	cfg.Groups = normalizeSavedGroups(cfg.Groups)
@@ -1223,8 +1348,10 @@ func (a *app) applyConfig(cfg savedConfig) {
 		a.groupNames[i].SetText(name)
 		a.groupTargets[i].SetText(targets)
 	}
-	a.pps.SetText(strconv.Itoa(cfg.PPS))
-	a.agg.SetText(strconv.Itoa(cfg.AggregationSeconds))
+	a.lastValidPPS = cfg.PPS
+	a.lastValidAgg = cfg.AggregationSeconds
+	a.setMeasurementText(a.pps, cfg.PPS)
+	a.setMeasurementText(a.agg, cfg.AggregationSeconds)
 	selected := useTypeSet(cfg.UseTypes)
 	for i, profile := range useProfiles {
 		if a.useChecks[i] != nil {
@@ -1256,7 +1383,7 @@ func (a *app) updateCurrentLabel() {
 	if start.IsZero() {
 		start = end
 	}
-	a.currentLabel.SetText(fmt.Sprintf("%d pings, %s", a.sessionPings, formatDuration(end.Sub(start))))
+	a.currentLabel.SetText(measurementStatusText(a.sessionPings, end.Sub(start)))
 	text, severity := summarizeConnectionIssues(a.connectionIssues())
 	a.setConnectionSummary(text, severity, true)
 }
@@ -2687,6 +2814,32 @@ func parseInt(value string, fallback int) int {
 		return fallback
 	}
 	return n
+}
+
+func parseStrictInt(value string) (int, bool) {
+	n, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil {
+		return 0, false
+	}
+	return n, true
+}
+
+func measurementStatusText(sampleCount int, elapsed time.Duration) string {
+	return fmt.Sprintf("%d samples, %s", sampleCount, formatDuration(elapsed))
+}
+
+func samplesPerAggregation(pps, aggSeconds int) int {
+	if pps <= 0 || aggSeconds <= 0 {
+		return 0
+	}
+	return pps * aggSeconds
+}
+
+func aggregationSecondsForSamples(pps, sampleCount int) int {
+	if pps <= 0 {
+		return minAggregationSeconds
+	}
+	return clampInt((sampleCount+pps-1)/pps, minAggregationSeconds, maxAggregationSeconds)
 }
 
 func clampInt(value, minValue, maxValue int) int {

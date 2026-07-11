@@ -450,6 +450,8 @@
 
       <h3>Scheduling</h3>
       <ul>
+        <li>The measurement rate accepts integer values from 1 to 50 measurements per second. The 50/sec limit maps to a 20 ms fixed schedule interval.</li>
+        <li>The aggregation window accepts integer values from 1 to 3600 seconds, but the chosen rate and window must produce at least two samples per aggregate. For example, 1 measurement/sec with a 1-second window is rejected and corrected to a 2-second window.</li>
         <li>Probe batches are scheduled at fixed intervals from the intended send time, starting immediately when monitoring begins.</li>
         <li>Scheduling does not wait for previous replies. Requests may overlap, and each request receives a 500 ms reply deadline.</li>
         <li>Replies completed at or before the deadline are on time; replies completed after the deadline cannot modify an already finalized sample.</li>
@@ -587,7 +589,7 @@
       <ul>
         <li>The first screen is the actual monitoring dashboard, not a landing page.</li>
         <li>The left pane contains target groups, use profiles, measurement rate, aggregation window, actions, and a History heading over the Save and Load buttons.</li>
-        <li>The total ping count, overall status, and build metadata sit at the bottom-left of the window so developers can identify the exact running build without opening external release notes.</li>
+        <li>The total sample count, overall status, and build metadata sit at the bottom-left of the window so developers can identify the exact running build without opening external release notes.</li>
         <li>The right pane contains the live latency chart and aggregate charts.</li>
         <li>Chart headers, last values, plot area, axis labels, and warning regions are custom-painted inside Walk <code>CustomWidget</code> controls.</li>
         <li>The live latency chart uses 10 pixels per sample slot: a 4-pixel group-colored bar centered between 3-pixel severity highlight margins. Multi-group samples sort RTT values low-to-high and draw each higher group's delta above the lower value. Packet loss is shown as a 10x10 group-colored cross with a 2-pixel stroke; only lost groups for that sample are stacked from the top of the plot, ordered group 3 above group 2 above group 1.</li>
@@ -785,6 +787,8 @@
         <div>Changed normal monitoring to use the Windows ICMP API directly for IPv4 echo requests instead of launching <code>ping.exe</code>.</div>
         <div><strong>Realtime issue markers</strong></div>
         <div>Changed live latency sample slots from 8 to 10 pixels, kept the RTT bars 4 pixels wide, widened issue highlight bars, enlarged loss crosses to 10x10 pixels, stacked present loss crosses from the top by group, and aligned sparse realtime x-axis labels with the right-anchored sample slots.</div>
+        <div><strong>Measurement input limits</strong></div>
+        <div>Raised the measurement-rate limit to 50/sec, allowed 1-second and 2-second aggregation windows, changed the bottom-left count label from pings to samples, and added validation so each aggregate window contains at least two samples.</div>
       </div>
     </section>
   </main>

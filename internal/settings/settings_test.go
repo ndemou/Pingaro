@@ -73,6 +73,27 @@ func TestLoadFromPathsPrefersSettingsJSONOverLegacy(t *testing.T) {
 	}
 }
 
+func TestNormalizeLoadedAllowsFiftyMeasurementsAndOneSecondWindow(t *testing.T) {
+	got := NormalizeLoaded(Config{PPS: 50, AggregationSeconds: 1})
+	if got.PPS != 50 || got.AggregationSeconds != 1 {
+		t.Fatalf("NormalizeLoaded timing = pps %d agg %d, want pps 50 agg 1", got.PPS, got.AggregationSeconds)
+	}
+}
+
+func TestNormalizeLoadedRequiresTwoSamplesPerAggregation(t *testing.T) {
+	got := NormalizeLoaded(Config{PPS: 1, AggregationSeconds: 1})
+	if got.PPS != 1 || got.AggregationSeconds != 2 {
+		t.Fatalf("NormalizeLoaded timing = pps %d agg %d, want pps 1 agg 2", got.PPS, got.AggregationSeconds)
+	}
+}
+
+func TestNormalizeLoadedClampsMeasurementsPerSecondToFifty(t *testing.T) {
+	got := NormalizeLoaded(Config{PPS: 99, AggregationSeconds: 1})
+	if got.PPS != 50 || got.AggregationSeconds != 1 {
+		t.Fatalf("NormalizeLoaded timing = pps %d agg %d, want pps 50 agg 1", got.PPS, got.AggregationSeconds)
+	}
+}
+
 func TestNormalizeGroupsCleansTargetsAndNames(t *testing.T) {
 	got := NormalizeGroups([]Group{
 		{Name: "", Targets: " localhost; gateway "},

@@ -101,6 +101,26 @@ func TestIsCancelledHResult(t *testing.T) {
 	}
 }
 
+func TestMeasurementStatusTextUsesSamples(t *testing.T) {
+	got := measurementStatusText(12, 5*time.Second)
+	want := "12 samples, 5 secs"
+	if got != want {
+		t.Fatalf("measurementStatusText() = %q, want %q", got, want)
+	}
+}
+
+func TestSamplesPerAggregationRequiresAtLeastTwoSamples(t *testing.T) {
+	if got := samplesPerAggregation(1, 1); got != 1 {
+		t.Fatalf("samplesPerAggregation(1, 1) = %d, want 1", got)
+	}
+	if got := aggregationSecondsForSamples(1, minSamplesPerAggregation); got != 2 {
+		t.Fatalf("aggregationSecondsForSamples(1, 2) = %d, want 2", got)
+	}
+	if got := samplesPerAggregation(2, 1); got != 2 {
+		t.Fatalf("samplesPerAggregation(2, 1) = %d, want 2", got)
+	}
+}
+
 func TestChartLineColorAllowsBlack(t *testing.T) {
 	fallback := walk.RGB(40, 150, 135)
 	if got := chartLineColor(map[int]walk.Color{0: walk.RGB(0, 0, 0)}, 0, fallback); got != walk.RGB(0, 0, 0) {
