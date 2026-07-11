@@ -6,8 +6,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/lxn/walk"
 )
 
 func TestPingBatchSucceedsWhenOneTargetReplies(t *testing.T) {
@@ -97,8 +95,6 @@ func TestP95JitterSkipsLostSamplesAndUsesExistingPercentile(t *testing.T) {
 func TestStreamStateAcceptTracksLossMinMaxAndAggregationBoundary(t *testing.T) {
 	at := time.Date(2026, time.July, 11, 10, 0, 0, 0, time.Local)
 	state := streamState{
-		groupIndex:    0,
-		color:         walk.RGB(0, 154, 222),
 		targetLabel:   "Internet",
 		aggSeconds:    3,
 		pingsPerBatch: 1,

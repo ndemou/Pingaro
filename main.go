@@ -26,6 +26,7 @@ import (
 	. "github.com/lxn/walk/declarative"
 	"github.com/lxn/win"
 	"pingaro/internal/history"
+	"pingaro/internal/monitor"
 	"pingaro/internal/profiles"
 	"pingaro/internal/settings"
 	"pingaro/internal/targets"
@@ -91,8 +92,7 @@ type pingResult struct {
 
 type sampleEvent struct {
 	at          time.Time
-	groupIndex  int
-	color       walk.Color
+	groupID     monitor.GroupID
 	rtt         int
 	lost        bool
 	targetLabel string
@@ -116,8 +116,7 @@ type historySample = history.Sample
 type historyAggregate = history.Aggregate
 
 type streamState struct {
-	groupIndex    int
-	color         walk.Color
+	groupID       monitor.GroupID
 	targetLabel   string
 	aggSeconds    int
 	pingsPerBatch int
@@ -130,13 +129,12 @@ type streamState struct {
 }
 
 type aggregatePoint struct {
-	groupIndex int
-	groupName  string
-	color      walk.Color
-	at         time.Time
-	p95        float64
-	loss       float64
-	jitterP95  float64
+	groupID   monitor.GroupID
+	groupName string
+	at        time.Time
+	p95       float64
+	loss      float64
+	jitterP95 float64
 }
 
 type chartPoint struct {
@@ -187,9 +185,9 @@ type lastItem struct {
 }
 
 type targetGroup struct {
+	ID      monitor.GroupID
 	Name    string
 	Targets []string
-	Color   walk.Color
 }
 
 type savedConfig = settings.Config
@@ -330,6 +328,24 @@ func defaultGroupColors() []walk.Color {
 		walk.RGB(175, 89, 186),
 		walk.RGB(255, 31, 91),
 	}
+}
+
+func groupIDFromIndex(index int) monitor.GroupID {
+	if index < 0 {
+		return 0
+	}
+	if index > 255 {
+		return monitor.GroupID(255)
+	}
+	return monitor.GroupID(index)
+}
+
+func (a *app) groupColor(id monitor.GroupID) walk.Color {
+	idx := id.Index()
+	if idx >= 0 && idx < len(a.colors) {
+		return a.colors[idx]
+	}
+	return walk.RGB(80, 90, 100)
 }
 
 func loadConfig() savedConfig {
@@ -637,7 +653,7 @@ func (a *app) targetGroups() []targetGroup {
 		if name == "" {
 			name = fmt.Sprintf("Group %d", i+1)
 		}
-		groups = append(groups, targetGroup{Name: name, Targets: targets, Color: a.colors[i]})
+		groups = append(groups, targetGroup{ID: groupIDFromIndex(i), Name: name, Targets: targets})
 	}
 	return groups
 }
@@ -735,8 +751,7 @@ func (a *app) pingLoop(ctx context.Context, groups []targetGroup, pps, aggSecond
 	states := make([]streamState, len(groups))
 	for i, g := range groups {
 		states[i] = streamState{
-			groupIndex:    i,
-			color:         g.Color,
+			groupID:       g.ID,
 			minRTT:        math.MaxInt,
 			targetLabel:   g.Name,
 			aggSeconds:    aggSeconds,
@@ -999,7 +1014,7 @@ func samePath(a, b string) bool {
 func historySampleFromEvent(s sampleEvent) historySample {
 	return historySample{
 		At:          s.at,
-		GroupIndex:  s.groupIndex,
+		GroupIndex:  s.groupID.Index(),
 		GroupName:   s.targetLabel,
 		RTT:         s.rtt,
 		Lost:        s.lost,
@@ -1017,7 +1032,7 @@ func historySampleFromEvent(s sampleEvent) historySample {
 func historyAggregateFromPoint(p aggregatePoint) historyAggregate {
 	return historyAggregate{
 		At:         p.at,
-		GroupIndex: p.groupIndex,
+		GroupIndex: p.groupID.Index(),
 		GroupName:  p.groupName,
 		P95:        p.p95,
 		Loss:       p.loss,
@@ -1063,8 +1078,7 @@ func (a *app) loadHistory(path string) error {
 			}
 			a.samples = append(a.samples, sampleEvent{
 				at:          s.At,
-				groupIndex:  idx,
-				color:       a.colors[idx],
+				groupID:     groupIDFromIndex(idx),
 				rtt:         s.RTT,
 				lost:        s.Lost,
 				targetLabel: name,
@@ -1093,13 +1107,12 @@ func (a *app) loadHistory(path string) error {
 				name = fmt.Sprintf("Group %d", idx+1)
 			}
 			a.aggregates = append(a.aggregates, aggregatePoint{
-				groupIndex: idx,
-				groupName:  name,
-				color:      a.colors[idx],
-				at:         p.At,
-				p95:        p.P95,
-				loss:       p.Loss,
-				jitterP95:  p.JitterP95,
+				groupID:   groupIDFromIndex(idx),
+				groupName: name,
+				at:        p.At,
+				p95:       p.P95,
+				loss:      p.Loss,
+				jitterP95: p.JitterP95,
 			})
 			if p.At.After(a.historyViewEnd) {
 				a.historyViewEnd = p.At
@@ -1501,16 +1514,17 @@ func (a *app) rttPoints() ([]chartPoint, time.Time, float64) {
 		if s.at.Before(now.Add(-120 * time.Second)) {
 			continue
 		}
+		groupIndex := s.groupID.Index()
 		value := float64(s.rtt)
 		severity := 0
-		lossWindows[s.groupIndex] = append(lossWindows[s.groupIndex], s.lost)
-		if len(lossWindows[s.groupIndex]) > 10 {
-			lossWindows[s.groupIndex] = lossWindows[s.groupIndex][len(lossWindows[s.groupIndex])-10:]
+		lossWindows[groupIndex] = append(lossWindows[groupIndex], s.lost)
+		if len(lossWindows[groupIndex]) > 10 {
+			lossWindows[groupIndex] = lossWindows[groupIndex][len(lossWindows[groupIndex])-10:]
 		}
 		if s.lost {
 			value = lostRTT
 			lostCount := 0
-			for _, lost := range lossWindows[s.groupIndex] {
+			for _, lost := range lossWindows[groupIndex] {
 				if lost {
 					lostCount++
 				}
@@ -1519,7 +1533,7 @@ func (a *app) rttPoints() ([]chartPoint, time.Time, float64) {
 		} else {
 			severity = thresholdSeverity(value, profile.RTT)
 		}
-		points = append(points, chartPoint{at: s.at, value: value, groupIndex: s.groupIndex, groupName: s.targetLabel, color: s.color, severity: severity})
+		points = append(points, chartPoint{at: s.at, value: value, groupIndex: groupIndex, groupName: s.targetLabel, color: a.groupColor(s.groupID), severity: severity})
 	}
 	maxValue := bucketedYMax(points, rttYMaxBuckets, lostRTT)
 	return points, now, maxValue
@@ -1542,7 +1556,7 @@ func (a *app) p95Points() ([]chartPoint, float64) {
 	points := make([]chartPoint, 0, len(a.aggregates))
 	profile := a.selectedProfile()
 	for _, p := range a.aggregates {
-		points = append(points, chartPoint{at: p.at, value: p.p95, groupIndex: p.groupIndex, groupName: p.groupName, color: p.color, severity: thresholdSeverity(p.p95, profile.RTT)})
+		points = append(points, chartPoint{at: p.at, value: p.p95, groupIndex: p.groupID.Index(), groupName: p.groupName, color: a.groupColor(p.groupID), severity: thresholdSeverity(p.p95, profile.RTT)})
 	}
 	maxValue := bucketedYMax(points, rttYMaxBuckets, -1)
 	return points, maxValue
@@ -1561,7 +1575,7 @@ func (a *app) lossPoints() []chartPoint {
 	points := make([]chartPoint, 0, len(a.aggregates))
 	profile := a.selectedProfile()
 	for _, p := range a.aggregates {
-		points = append(points, chartPoint{at: p.at, value: p.loss, groupIndex: p.groupIndex, groupName: p.groupName, color: p.color, severity: thresholdSeverity(p.loss, profile.Loss)})
+		points = append(points, chartPoint{at: p.at, value: p.loss, groupIndex: p.groupID.Index(), groupName: p.groupName, color: a.groupColor(p.groupID), severity: thresholdSeverity(p.loss, profile.Loss)})
 	}
 	return points
 }
@@ -1579,7 +1593,7 @@ func (a *app) jitterPoints() ([]chartPoint, float64) {
 	points := make([]chartPoint, 0, len(a.aggregates))
 	profile := a.selectedProfile()
 	for _, p := range a.aggregates {
-		points = append(points, chartPoint{at: p.at, value: p.jitterP95, groupIndex: p.groupIndex, groupName: p.groupName, color: p.color, severity: thresholdSeverity(p.jitterP95, profile.Jitter)})
+		points = append(points, chartPoint{at: p.at, value: p.jitterP95, groupIndex: p.groupID.Index(), groupName: p.groupName, color: a.groupColor(p.groupID), severity: thresholdSeverity(p.jitterP95, profile.Jitter)})
 	}
 	maxValue := bucketedYMax(points, jitterYMaxBuckets, -1)
 	return points, maxValue
@@ -2409,8 +2423,7 @@ func (s *streamState) accept(r pingResult) sampleEvent {
 	}
 	ev := sampleEvent{
 		at:          r.sentAt,
-		groupIndex:  s.groupIndex,
-		color:       s.color,
+		groupID:     s.groupID,
 		rtt:         value,
 		lost:        lost,
 		targetLabel: s.targetLabel,
@@ -2427,13 +2440,12 @@ func (s *streamState) accept(r pingResult) sampleEvent {
 	}
 	if r.sentAt.Sub(s.lastAgg) >= time.Duration(s.aggSeconds)*time.Second {
 		ev.aggregate = &aggregatePoint{
-			groupIndex: s.groupIndex,
-			groupName:  s.targetLabel,
-			color:      s.color,
-			at:         r.sentAt,
-			p95:        p95,
-			loss:       ev.windowLoss,
-			jitterP95:  ev.jitterP95,
+			groupID:   s.groupID,
+			groupName: s.targetLabel,
+			at:        r.sentAt,
+			p95:       p95,
+			loss:      ev.windowLoss,
+			jitterP95: ev.jitterP95,
 		}
 		s.lastAgg = r.sentAt
 	}
