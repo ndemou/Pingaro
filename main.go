@@ -28,6 +28,7 @@ import (
 	"github.com/lxn/walk"
 	. "github.com/lxn/walk/declarative"
 	"github.com/lxn/win"
+	"pingaro/internal/profiles"
 )
 
 const lostRTT = 9999
@@ -232,14 +233,7 @@ type savedGroup struct {
 	Targets string `json:"targets"`
 }
 
-type useProfile struct {
-	Name            string
-	RTT             [3]float64
-	Loss            [3]float64
-	Jitter          [3]float64
-	DefaultSelected bool
-	ShowsJitter     bool
-}
+type useProfile = profiles.Profile
 
 type app struct {
 	*walk.MainWindow
@@ -280,71 +274,22 @@ type app struct {
 	aggregateEmptyAt  time.Time
 }
 
-var useProfiles = []useProfile{
-	{Name: "Browsing & Email", RTT: [3]float64{150, 300, 600}, Loss: [3]float64{0.5, 2, 5}, Jitter: [3]float64{600, 600, 600}, DefaultSelected: true},
-	{Name: "Remote Desktop", RTT: [3]float64{100, 150, 220}, Loss: [3]float64{1, 2, 3}, Jitter: [3]float64{15, 30, 50}},
-	{Name: "Audio Calls", RTT: [3]float64{100, 150, 250}, Loss: [3]float64{1, 2, 3}, Jitter: [3]float64{20, 30, 50}, DefaultSelected: true, ShowsJitter: true},
-	{Name: "Video Calls", RTT: [3]float64{100, 150, 250}, Loss: [3]float64{1, 2, 3}, Jitter: [3]float64{20, 30, 50}, DefaultSelected: true, ShowsJitter: true},
-	{Name: "Online Gaming", RTT: [3]float64{50, 80, 120}, Loss: [3]float64{0.5, 1, 2}, Jitter: [3]float64{10, 20, 30}, DefaultSelected: true},
-	{Name: "Superhuman Gaming", RTT: [3]float64{20, 35, 60}, Loss: [3]float64{0.1, 0.5, 1}, Jitter: [3]float64{5, 10, 20}},
-}
-
-var useProfileAliases = map[string]string{
-	"email & browsing":   "Browsing & Email",
-	"low latency gaming": "Superhuman Gaming",
-}
+var useProfiles = profiles.All()
 
 func useTypes() []string {
-	names := make([]string, 0, len(useProfiles))
-	for _, profile := range useProfiles {
-		names = append(names, profile.Name)
-	}
-	return names
+	return profiles.Names()
 }
 
 func defaultUseTypes() []string {
-	names := make([]string, 0, len(useProfiles))
-	for _, profile := range useProfiles {
-		if profile.DefaultSelected {
-			names = append(names, profile.Name)
-		}
-	}
-	return names
+	return profiles.DefaultUseTypes()
 }
 
 func normalizeUseType(value string) string {
-	value = strings.TrimSpace(strings.ToLower(value))
-	if name, ok := useProfileAliases[value]; ok {
-		return name
-	}
-	for _, profile := range useProfiles {
-		if value == strings.ToLower(profile.Name) {
-			return profile.Name
-		}
-	}
-	return ""
+	return profiles.NormalizeUseType(value)
 }
 
 func normalizeUseTypes(values []string, legacyValue string) []string {
-	seen := map[string]bool{}
-	var normalized []string
-	for _, value := range values {
-		name := normalizeUseType(value)
-		if name == "" || seen[name] {
-			continue
-		}
-		seen[name] = true
-		normalized = append(normalized, name)
-	}
-	if len(normalized) == 0 && strings.TrimSpace(legacyValue) != "" {
-		if name := normalizeUseType(legacyValue); name != "" {
-			normalized = append(normalized, name)
-		}
-	}
-	if len(normalized) == 0 {
-		return defaultUseTypes()
-	}
-	return normalized
+	return profiles.NormalizeUseTypes(values, legacyValue)
 }
 
 func useTypeSet(values []string) map[string]bool {
@@ -356,42 +301,15 @@ func useTypeSet(values []string) map[string]bool {
 }
 
 func profileFor(name string) (useProfile, bool) {
-	name = normalizeUseType(name)
-	for _, profile := range useProfiles {
-		if profile.Name == name {
-			return profile, true
-		}
-	}
-	return useProfile{}, false
+	return profiles.ForName(name)
 }
 
 func profileForUses(names []string) useProfile {
-	names = normalizeUseTypes(names, "")
-	first, _ := profileFor(names[0])
-	combined := first
-	combined.Name = strings.Join(names, ", ")
-	for _, name := range names[1:] {
-		profile, ok := profileFor(name)
-		if !ok {
-			continue
-		}
-		for i := 0; i < 3; i++ {
-			combined.RTT[i] = math.Min(combined.RTT[i], profile.RTT[i])
-			combined.Loss[i] = math.Min(combined.Loss[i], profile.Loss[i])
-			combined.Jitter[i] = math.Min(combined.Jitter[i], profile.Jitter[i])
-		}
-		combined.ShowsJitter = combined.ShowsJitter || profile.ShowsJitter
-	}
-	return combined
+	return profiles.ForUses(names)
 }
 
 func usesShowJitter(names []string) bool {
-	for _, name := range normalizeUseTypes(names, "") {
-		if profile, ok := profileFor(name); ok && profile.ShowsJitter {
-			return true
-		}
-	}
-	return false
+	return profiles.UsesShowJitter(names)
 }
 
 func main() {
@@ -2541,16 +2459,7 @@ func severityColor(severity int) walk.Color {
 }
 
 func thresholdSeverity(value float64, thresholds [3]float64) int {
-	if value >= thresholds[2] {
-		return 3
-	}
-	if value >= thresholds[1] {
-		return 2
-	}
-	if value >= thresholds[0] {
-		return 1
-	}
-	return 0
+	return int(profiles.ThresholdSeverity(value, thresholds))
 }
 
 func lastItems(points []chartPoint, unit string, special float64, includeGroupName bool) []lastItem {
