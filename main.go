@@ -5,10 +5,8 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"math"
 	"os"
@@ -27,6 +25,7 @@ import (
 	"github.com/lxn/walk"
 	. "github.com/lxn/walk/declarative"
 	"github.com/lxn/win"
+	"pingaro/internal/history"
 	"pingaro/internal/profiles"
 	"pingaro/internal/settings"
 	"pingaro/internal/targets"
@@ -110,39 +109,11 @@ type sampleEvent struct {
 	period      time.Duration
 }
 
-type historyFile struct {
-	Version       int                `json:"version"`
-	SavedAt       time.Time          `json:"savedAt"`
-	Config        savedConfig        `json:"config"`
-	PeriodSeconds int                `json:"periodSeconds"`
-	Samples       []historySample    `json:"samples"`
-	Aggregates    []historyAggregate `json:"aggregates"`
-}
+type historyFile = history.File
 
-type historySample struct {
-	At          time.Time `json:"at"`
-	GroupIndex  int       `json:"groupIndex"`
-	GroupName   string    `json:"groupName"`
-	RTT         int       `json:"rtt"`
-	Lost        bool      `json:"lost"`
-	MinRTT      int       `json:"minRtt"`
-	MaxRTT      int       `json:"maxRtt"`
-	Total       int       `json:"total"`
-	LostTotal   int       `json:"lostTotal"`
-	LossPercent float64   `json:"lossPercent"`
-	P95         float64   `json:"p95"`
-	JitterP95   float64   `json:"jitterP95"`
-	WindowLoss  float64   `json:"windowLoss"`
-}
+type historySample = history.Sample
 
-type historyAggregate struct {
-	At         time.Time `json:"at"`
-	GroupIndex int       `json:"groupIndex"`
-	GroupName  string    `json:"groupName"`
-	P95        float64   `json:"p95"`
-	Loss       float64   `json:"loss"`
-	JitterP95  float64   `json:"jitterP95"`
-}
+type historyAggregate = history.Aggregate
 
 type streamState struct {
 	groupIndex    int
@@ -428,69 +399,15 @@ func activeDefaultHistoryPath() string {
 }
 
 func migrateLegacyHistoryFile(path, legacyPath string) error {
-	if _, err := os.Stat(path); err == nil {
-		return nil
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-	if _, err := os.Stat(legacyPath); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil
-		}
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return err
-	}
-	if err := os.Rename(legacyPath, path); err == nil {
-		return nil
-	}
-	data, err := os.ReadFile(legacyPath)
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(path, data, 0644); err != nil {
-		return err
-	}
-	return os.Remove(legacyPath)
+	return history.MigrateLegacyFile(path, legacyPath)
 }
 
 func createAutosaveHistoryFile(dir string, startedAt time.Time, pid int) (string, error) {
-	if startedAt.IsZero() {
-		startedAt = time.Now()
-	}
-	if pid <= 0 {
-		pid = os.Getpid()
-	}
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return "", err
-	}
-	stem := "history-" + startedAt.Format("2006-01-02_15.04.05")
-	for suffix := 0; ; suffix++ {
-		path := filepath.Join(dir, autosaveHistoryFilename(stem, pid, suffix))
-		file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
-		if err == nil {
-			closeErr := file.Close()
-			if closeErr != nil {
-				return "", closeErr
-			}
-			return path, nil
-		}
-		if !errors.Is(err, os.ErrExist) {
-			return "", err
-		}
-	}
+	return history.CreateAutosaveFile(dir, startedAt, pid)
 }
 
 func autosaveHistoryFilename(stem string, pid, suffix int) string {
-	switch suffix {
-	case 0:
-		return stem + ".json"
-	case 1:
-		return fmt.Sprintf("%s-pid%d.json", stem, pid)
-	default:
-		return fmt.Sprintf("%s-pid%d-%d.json", stem, pid, suffix)
-	}
+	return history.AutosaveFilename(stem, pid, suffix)
 }
 
 func appDataPath(name string) string {
@@ -1052,47 +969,19 @@ func (a *app) historySnapshot(samples []sampleEvent, aggregates []aggregatePoint
 }
 
 func writeHistoryFile(path string, h historyFile) error {
-	return writeHistoryRecords(path, []historyFile{h})
+	return history.WriteFile(path, h)
 }
 
 func writeHistoryRecords(path string, records []historyFile) error {
-	file, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	encoder := json.NewEncoder(file)
-	for _, h := range records {
-		if err = encoder.Encode(h); err != nil {
-			break
-		}
-	}
-	closeErr := file.Close()
-	if err != nil {
-		return err
-	}
-	return closeErr
+	return history.WriteRecords(path, records)
 }
 
 func appendHistoryLine(path string, h historyFile) error {
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-	if err != nil {
-		return err
-	}
-	encoder := json.NewEncoder(file)
-	err = encoder.Encode(h)
-	closeErr := file.Close()
-	if err != nil {
-		return err
-	}
-	return closeErr
+	return history.AppendLine(path, h)
 }
 
 func readHistoryFile(path string) ([]historyFile, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	return parseHistoryRecords(data)
+	return history.ReadFile(path)
 }
 
 func samePath(a, b string) bool {
@@ -1227,20 +1116,7 @@ func (a *app) loadHistory(path string) error {
 }
 
 func parseHistoryRecords(data []byte) ([]historyFile, error) {
-	var records []historyFile
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	for {
-		var h historyFile
-		err := decoder.Decode(&h)
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		if err != nil {
-			return nil, fmt.Errorf("invalid history JSON: %w", err)
-		}
-		records = append(records, h)
-	}
-	return records, nil
+	return history.ParseRecords(data)
 }
 
 func (a *app) trimAggregates() {
