@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -428,8 +429,12 @@ func TestXAxisTicksUseSecondLevelLabels(t *testing.T) {
 	}
 }
 
-func TestRealtimeSampleCapacityUsesEightPixelsPerSample(t *testing.T) {
+func TestRealtimeSampleCapacityUsesTenPixelsPerSample(t *testing.T) {
 	got := realtimeSampleCapacity(80)
+	if got != 8 {
+		t.Fatalf("realtimeSampleCapacity() = %d, want 8", got)
+	}
+	got = realtimeSampleCapacity(100)
 	if got != 10 {
 		t.Fatalf("realtimeSampleCapacity() = %d, want 10", got)
 	}
@@ -447,7 +452,7 @@ func TestVisibleRealtimeBarSamplesGroupsByTimestampAndKeepsNewestCapacity(t *tes
 		{at: start.Add(2 * time.Second), groupIndex: 0},
 	}
 
-	all := visibleRealtimeBarSamples(points, 24)
+	all := visibleRealtimeBarSamples(points, 30)
 	if len(all) != 3 {
 		t.Fatalf("len(visibleRealtimeBarSamples) = %d, want 3", len(all))
 	}
@@ -455,13 +460,48 @@ func TestVisibleRealtimeBarSamplesGroupsByTimestampAndKeepsNewestCapacity(t *tes
 		t.Fatalf("first sample point count = %d, want 2", len(all[0].points))
 	}
 
-	got := visibleRealtimeBarSamples(points, 16)
+	got := visibleRealtimeBarSamples(points, 20)
 	if len(got) != 2 {
 		t.Fatalf("len(visibleRealtimeBarSamples limited) = %d, want 2", len(got))
 	}
 	if !got[0].at.Equal(start.Add(time.Second)) || !got[1].at.Equal(start.Add(2*time.Second)) {
 		t.Fatalf("visible samples kept wrong timestamps: got %v and %v", got[0].at, got[1].at)
 	}
+}
+
+func TestRealtimeBarTimeRangeAlignsSparseSamplesToRightAnchoredSlots(t *testing.T) {
+	start := time.Date(2026, time.July, 9, 12, 0, 0, 0, time.Local)
+	samples := []realtimeBarSample{
+		{at: start},
+		{at: start.Add(time.Second)},
+		{at: start.Add(2 * time.Second)},
+	}
+
+	gotStart, gotEnd := realtimeBarTimeRange(samples, start.Add(2*time.Second), 100)
+	if !gotStart.Equal(start.Add(-7500 * time.Millisecond)) {
+		t.Fatalf("range start = %v, want %v", gotStart, start.Add(-7500*time.Millisecond))
+	}
+	if !gotEnd.Equal(start.Add(2500 * time.Millisecond)) {
+		t.Fatalf("range end = %v, want %v", gotEnd, start.Add(2500*time.Millisecond))
+	}
+	if got := realtimeTimeX(start, gotStart, gotEnd, 100); got != 75 {
+		t.Fatalf("first sample x = %v, want 75", got)
+	}
+	if got := realtimeTimeX(start.Add(2*time.Second), gotStart, gotEnd, 100); got != 95 {
+		t.Fatalf("last sample x = %v, want 95", got)
+	}
+}
+
+func TestRealtimeBarTimeRangeAlignsSingleSampleToRightmostSlot(t *testing.T) {
+	at := time.Date(2026, time.July, 9, 12, 0, 0, 0, time.Local)
+	gotStart, gotEnd := realtimeBarTimeRange([]realtimeBarSample{{at: at}}, at, 100)
+	if got := realtimeTimeX(at, gotStart, gotEnd, 100); got != 95 {
+		t.Fatalf("single sample x = %v, want 95", got)
+	}
+}
+
+func realtimeTimeX(at, start, end time.Time, plotWidth int) int {
+	return int(math.Round(at.Sub(start).Seconds() / end.Sub(start).Seconds() * float64(plotWidth)))
 }
 
 func TestRealtimeBarSegmentsStackLowToHighAndSkipLoss(t *testing.T) {
@@ -491,15 +531,18 @@ func TestRealtimeBarSegmentsStackLowToHighAndSkipLoss(t *testing.T) {
 	}
 }
 
-func TestRealtimeLossMarkerRectStaggersByGroup(t *testing.T) {
+func TestRealtimeLossMarkerRectStacksFromTopByGroup(t *testing.T) {
 	plot := walk.Rectangle{X: 10, Y: 20, Width: 80, Height: 100}
 	barX := 30
-	group1 := realtimeLossMarkerRect(plot, barX, 0, 0, 100)
-	group2 := realtimeLossMarkerRect(plot, barX, 1, 0, 100)
-	group3 := realtimeLossMarkerRect(plot, barX, 2, 0, 100)
+	group3 := realtimeLossMarkerRect(plot, barX, 0)
+	group2 := realtimeLossMarkerRect(plot, barX, 1)
+	group1 := realtimeLossMarkerRect(plot, barX, 2)
 
 	if group1.Width != realtimeLossMarkerSize || group1.Height != realtimeLossMarkerSize {
 		t.Fatalf("loss marker size = %dx%d, want %dx%d", group1.Width, group1.Height, realtimeLossMarkerSize, realtimeLossMarkerSize)
+	}
+	if realtimeLossMarkerSize != 10 {
+		t.Fatalf("loss marker size = %d, want 10", realtimeLossMarkerSize)
 	}
 	if realtimeLossMarkerStrokeWidth != 2 {
 		t.Fatalf("loss marker stroke width = %d, want 2", realtimeLossMarkerStrokeWidth)
@@ -507,11 +550,37 @@ func TestRealtimeLossMarkerRectStaggersByGroup(t *testing.T) {
 	if group1.X != barX+realtimeBarWidth/2-realtimeLossMarkerSize/2 {
 		t.Fatalf("loss marker x = %d, want centered on bar", group1.X)
 	}
-	if group2.Y != group1.Y-realtimeLossMarkerYOffset {
-		t.Fatalf("group 2 loss marker y = %d, want %d", group2.Y, group1.Y-realtimeLossMarkerYOffset)
+	if group3.Y != plot.Y {
+		t.Fatalf("group 3 loss marker y = %d, want top %d", group3.Y, plot.Y)
 	}
-	if group3.Y != group2.Y-realtimeLossMarkerYOffset {
-		t.Fatalf("group 3 loss marker y = %d, want %d", group3.Y, group2.Y-realtimeLossMarkerYOffset)
+	if group2.Y != group3.Y+realtimeLossMarkerSize {
+		t.Fatalf("group 2 loss marker y = %d, want %d", group2.Y, group3.Y+realtimeLossMarkerSize)
+	}
+	if group1.Y != group2.Y+realtimeLossMarkerSize {
+		t.Fatalf("group 1 loss marker y = %d, want %d", group1.Y, group2.Y+realtimeLossMarkerSize)
+	}
+}
+
+func TestRealtimeBarLossMarkersStackOnlyPresentLossesFromTop(t *testing.T) {
+	points := []chartPoint{
+		{groupIndex: 0, lost: true},
+		{groupIndex: 1},
+		{groupIndex: 2, lost: true},
+	}
+
+	got := realtimeBarLossMarkers(points)
+	if len(got) != 2 {
+		t.Fatalf("loss marker count = %d, want 2", len(got))
+	}
+	if got[0].groupIndex != 2 || got[1].groupIndex != 0 {
+		t.Fatalf("loss marker order = [%d %d], want [2 0]", got[0].groupIndex, got[1].groupIndex)
+	}
+
+	plot := walk.Rectangle{X: 10, Y: 20, Width: 80, Height: 100}
+	first := realtimeLossMarkerRect(plot, 30, 0)
+	second := realtimeLossMarkerRect(plot, 30, 1)
+	if first.Y != plot.Y || second.Y != plot.Y+realtimeLossMarkerSize {
+		t.Fatalf("stack y positions = %d/%d, want %d/%d", first.Y, second.Y, plot.Y, plot.Y+realtimeLossMarkerSize)
 	}
 }
 

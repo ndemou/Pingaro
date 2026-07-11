@@ -60,11 +60,10 @@ const (
 	aggregateMinPixelsPerSample       = 6
 	aggregatePreferredPixelsPerSample = aggregateMinPixelsPerSample * 4
 	realtimeBarWidth                  = 4
-	realtimeBarHighlightPadding       = 2
+	realtimeBarHighlightPadding       = 3
 	realtimePixelsPerSample           = realtimeBarWidth + 2*realtimeBarHighlightPadding
-	realtimeLossMarkerSize            = 6
+	realtimeLossMarkerSize            = 10
 	realtimeLossMarkerStrokeWidth     = 2
-	realtimeLossMarkerYOffset         = 8
 )
 
 var (
@@ -1564,7 +1563,7 @@ func (a *app) paintRTT(canvas *walk.Canvas, bounds walk.Rectangle) error {
 	plot := plotBounds(chartRect)
 	samples := visibleRealtimeBarSamples(points, plot.Width)
 	maxValue := bucketedYMax(realtimeBarSamplePoints(samples), rttYMaxBuckets)
-	start, end := realtimeBarTimeRange(samples, now)
+	start, end := realtimeBarTimeRange(samples, now, plot.Width)
 	return drawRealtimeBarChart(canvas, chartRect, samples, start, end, 20*time.Second, 0, maxValue, "ms")
 }
 
@@ -1747,19 +1746,51 @@ func realtimeBarSamplePoints(samples []realtimeBarSample) []chartPoint {
 	return points
 }
 
-func realtimeBarTimeRange(samples []realtimeBarSample, fallbackEnd time.Time) (time.Time, time.Time) {
+func realtimeBarTimeRange(samples []realtimeBarSample, fallbackEnd time.Time, plotWidth int) (time.Time, time.Time) {
 	if fallbackEnd.IsZero() {
 		fallbackEnd = time.Now()
 	}
 	if len(samples) == 0 {
 		return fallbackEnd.Add(-120 * time.Second), fallbackEnd
 	}
-	start := samples[0].at
-	end := samples[len(samples)-1].at
+	interval := realtimeSampleInterval(samples)
+	if interval <= 0 {
+		interval = time.Second
+	}
+	sampleCount := len(samples)
+	occupiedWidth := sampleCount * realtimePixelsPerSample
+	leftOffset := float64(realtimePixelsPerSample) / 2
+	if occupiedWidth < plotWidth {
+		leftOffset = float64(plotWidth-occupiedWidth) + float64(realtimePixelsPerSample)/2
+	}
+	width := max(1, plotWidth)
+	startOffsetUnits := leftOffset / float64(realtimePixelsPerSample)
+	rangeUnits := float64(width) / float64(realtimePixelsPerSample)
+	start := samples[0].at.Add(-scaleDuration(interval, startOffsetUnits))
+	end := start.Add(scaleDuration(interval, rangeUnits))
 	if !end.After(start) {
 		end = start.Add(time.Second)
 	}
 	return start, end
+}
+
+func realtimeSampleInterval(samples []realtimeBarSample) time.Duration {
+	if len(samples) < 2 {
+		return time.Second
+	}
+	first := samples[0].at
+	last := samples[len(samples)-1].at
+	if !last.After(first) {
+		return time.Second
+	}
+	return last.Sub(first) / time.Duration(len(samples)-1)
+}
+
+func scaleDuration(d time.Duration, factor float64) time.Duration {
+	if factor <= 0 {
+		return 0
+	}
+	return time.Duration(math.Round(float64(d) * factor))
 }
 
 func realtimeBarSampleSeverity(sample realtimeBarSample) int {
@@ -1885,15 +1916,12 @@ func drawRealtimeBars(canvas *walk.Canvas, plot walk.Rectangle, samples []realti
 				return err
 			}
 		}
-		for _, p := range sample.points {
-			if !p.lost {
-				continue
-			}
+		for stackIndex, p := range realtimeBarLossMarkers(sample.points) {
 			brush, err := cachedSolidBrush(brushes, p.color)
 			if err != nil {
 				return err
 			}
-			if err := drawRealtimeLossMarker(canvas, plot, realtimeLossMarkerRect(plot, barX, p.groupIndex, yMin, yMax), brush); err != nil {
+			if err := drawRealtimeLossMarker(canvas, plot, realtimeLossMarkerRect(plot, barX, stackIndex), brush); err != nil {
 				return err
 			}
 		}
@@ -1901,13 +1929,24 @@ func drawRealtimeBars(canvas *walk.Canvas, plot walk.Rectangle, samples []realti
 	return nil
 }
 
-func realtimeLossMarkerRect(plot walk.Rectangle, barX int, groupIndex int, yMin, yMax float64) walk.Rectangle {
+func realtimeBarLossMarkers(points []chartPoint) []chartPoint {
+	markers := make([]chartPoint, 0, len(points))
+	for _, p := range points {
+		if p.lost {
+			markers = append(markers, p)
+		}
+	}
+	sort.SliceStable(markers, func(i, j int) bool {
+		return markers[i].groupIndex > markers[j].groupIndex
+	})
+	return markers
+}
+
+func realtimeLossMarkerRect(plot walk.Rectangle, barX int, stackIndex int) walk.Rectangle {
 	centerX := barX + realtimeBarWidth/2
-	baseline := int(math.Round(chartValueY(plot, yMin, yMin, yMax)))
-	bottom := baseline - max(0, groupIndex)*realtimeLossMarkerYOffset
 	return walk.Rectangle{
 		X:      centerX - realtimeLossMarkerSize/2,
-		Y:      bottom - realtimeLossMarkerSize,
+		Y:      plot.Y + max(0, stackIndex)*realtimeLossMarkerSize,
 		Width:  realtimeLossMarkerSize,
 		Height: realtimeLossMarkerSize,
 	}
