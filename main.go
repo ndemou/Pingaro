@@ -2698,10 +2698,7 @@ func drawChartHeader(canvas *walk.Canvas, rect walk.Rectangle, title string, ite
 		widths = make([]int, len(parts))
 	}
 	for i, part := range parts {
-		w, err := measureTextWidthPixels(canvas, valueFont, part.Text)
-		if err != nil {
-			return err
-		}
+		w := estimateHeaderTextWidthPixels(part.Text)
 		w = max(8, w+2)
 		widths[i] = w
 		total += w
@@ -2733,12 +2730,23 @@ func drawChartHeader(canvas *walk.Canvas, rect walk.Rectangle, title string, ite
 	return nil
 }
 
-func measureTextWidthPixels(canvas *walk.Canvas, font *walk.Font, text string) (int, error) {
-	bounds, _, err := canvas.MeasureTextPixels(text, font, walk.Rectangle{Width: 10000, Height: 1000}, walk.TextSingleLine|walk.TextCalcRect)
-	if err != nil {
-		return 0, err
+func estimateHeaderTextWidthPixels(text string) int {
+	width := 0
+	for _, r := range text {
+		switch {
+		case r == ' ':
+			width += 4
+		case r >= '0' && r <= '9':
+			width += 7
+		case strings.ContainsRune(":.,/%()-", r):
+			width += 4
+		case r < 128:
+			width += 8
+		default:
+			width += 10
+		}
 	}
-	return bounds.Width, nil
+	return width
 }
 
 func drawChartBackground(canvas *walk.Canvas, rect walk.Rectangle) error {
