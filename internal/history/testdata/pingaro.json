@@ -1,0 +1,13 @@
+{
+  "groups": [
+    {
+      "name": "Legacy Settings",
+      "targets": "localhost"
+    }
+  ],
+  "pps": 1,
+  "aggregationSeconds": 120,
+  "useTypes": [
+    "email & browsing"
+  ]
+}

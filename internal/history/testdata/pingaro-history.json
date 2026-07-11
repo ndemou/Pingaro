@@ -1,0 +1,1 @@
+{"version":1,"savedAt":"2026-07-11T09:10:00+03:00","config":{"groups":[{"name":"Legacy","targets":"1.1.1.1"}],"pps":1,"aggregationSeconds":120,"useType":"email & browsing"},"periodSeconds":120,"samples":[],"aggregates":[]}

@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "savedAt": "2026-07-11T09:05:00+03:00",
+  "config": {
+    "groups": [
+      {
+        "name": "Internet",
+        "targets": "1.1.1.1"
+      }
+    ],
+    "pps": 1,
+    "aggregationSeconds": 120,
+    "useTypes": [
+      "Online Gaming"
+    ]
+  },
+  "periodSeconds": 120,
+  "samples": [
+    {
+      "at": "2026-07-11T09:04:00+03:00",
+      "groupIndex": 0,
+      "groupName": "Internet",
+      "rtt": 9999,
+      "lost": true,
+      "minRtt": 0,
+      "maxRtt": 0,
+      "total": 1,
+      "lostTotal": 1,
+      "lossPercent": 100,
+      "p95": 0,
+      "jitterP95": 0,
+      "windowLoss": 100
+    }
+  ],
+  "aggregates": [
+    {
+      "at": "2026-07-11T09:04:00+03:00",
+      "groupIndex": 0,
+      "groupName": "Internet",
+      "p95": 0,
+      "loss": 100,
+      "jitterP95": 0
+    }
+  ]
+}

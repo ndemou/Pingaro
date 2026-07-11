@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "savedAt": "2026-07-11T09:00:00+03:00",
+  "config": {
+    "groups": [
+      {
+        "name": "Gateway",
+        "targets": "gateway"
+      },
+      {
+        "name": "Internet",
+        "targets": "1.1.1.1, 8.8.8.8"
+      }
+    ],
+    "pps": 1,
+    "aggregationSeconds": 120,
+    "useTypes": [
+      "Browsing & Email",
+      "Video Calls"
+    ]
+  },
+  "periodSeconds": 120,
+  "samples": [],
+  "aggregates": []
+}

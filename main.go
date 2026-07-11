@@ -2763,7 +2763,13 @@ func (s *streamState) accept(r pingResult) sampleEvent {
 	return ev
 }
 
+type pingProbeFunc func(context.Context, string, time.Time) pingResult
+
 func pingBatch(ctx context.Context, hosts []string, destination string, sentAt time.Time) pingResult {
+	return pingBatchWithProbe(ctx, hosts, destination, sentAt, pingOnce)
+}
+
+func pingBatchWithProbe(ctx context.Context, hosts []string, destination string, sentAt time.Time, probe pingProbeFunc) pingResult {
 	var wg sync.WaitGroup
 	ch := make(chan pingResult, len(hosts))
 	for _, h := range hosts {
@@ -2771,7 +2777,7 @@ func pingBatch(ctx context.Context, hosts []string, destination string, sentAt t
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			ch <- pingOnce(ctx, host, sentAt)
+			ch <- probe(ctx, host, sentAt)
 		}()
 	}
 	wg.Wait()

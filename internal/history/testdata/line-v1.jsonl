@@ -1,0 +1,2 @@
+{"version":1,"savedAt":"2026-07-11T09:00:00+03:00","config":{"groups":[{"name":"Gateway","targets":"gateway"}],"pps":1,"aggregationSeconds":120,"useTypes":["Browsing & Email"]},"periodSeconds":120,"samples":[],"aggregates":[]}
+{"version":1,"savedAt":"2026-07-11T09:02:00+03:00","config":{"groups":[{"name":"Gateway","targets":"gateway"}],"pps":1,"aggregationSeconds":120,"useTypes":["Browsing & Email"]},"periodSeconds":120,"samples":[],"aggregates":[]}

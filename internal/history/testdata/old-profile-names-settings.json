@@ -1,0 +1,13 @@
+{
+  "groups": [
+    {
+      "name": "Gaming",
+      "targets": "gateway"
+    }
+  ],
+  "pps": 1,
+  "aggregationSeconds": 120,
+  "useTypes": [
+    "low latency gaming"
+  ]
+}
