@@ -136,6 +136,19 @@ func TestSamplesPerAggregationRequiresAtLeastTwoSamples(t *testing.T) {
 	}
 }
 
+func TestRenderThrottleDelayCapsRenderingAtTenPerSecond(t *testing.T) {
+	now := time.Date(2026, time.July, 11, 12, 0, 0, 0, time.Local)
+	if got := renderThrottleDelay(time.Time{}, now); got != 0 {
+		t.Fatalf("initial render delay = %v, want 0", got)
+	}
+	if got := renderThrottleDelay(now, now.Add(50*time.Millisecond)); got != 50*time.Millisecond {
+		t.Fatalf("mid-window render delay = %v, want 50ms", got)
+	}
+	if got := renderThrottleDelay(now, now.Add(100*time.Millisecond)); got != 0 {
+		t.Fatalf("boundary render delay = %v, want 0", got)
+	}
+}
+
 func TestChartLineColorAllowsBlack(t *testing.T) {
 	fallback := walk.RGB(40, 150, 135)
 	if got := chartLineColor(map[int]walk.Color{0: walk.RGB(0, 0, 0)}, 0, fallback); got != walk.RGB(0, 0, 0) {

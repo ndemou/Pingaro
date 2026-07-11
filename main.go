@@ -49,6 +49,8 @@ const (
 	maxAggregationSeconds    = 3600
 	minSamplesPerAggregation = 2
 	groupSubsectionIndent    = 12
+	maxRendersPerSecond      = 10
+	renderThrottleInterval   = time.Second / maxRendersPerSecond
 )
 
 var (
@@ -239,6 +241,11 @@ type app struct {
 	lastValidPPS      int
 	lastValidAgg      int
 	updatingInputs    bool
+	lastRenderAt      time.Time
+	renderScheduled   bool
+	pendingStatus     bool
+	pendingRealtime   bool
+	pendingAggregate  bool
 	rttChartHeight    int
 	p95ChartHeight    int
 	lossChartHeight   int
@@ -937,15 +944,14 @@ func (a *app) accept(ev sampleEvent) {
 		a.trimAggregates()
 	}
 
-	a.updateCurrentLabel()
 	now := time.Now()
 	if flushed, err := a.maybeFlushAutosaveHistory(now); err == nil && flushed {
 		a.lastHistorySave = now
 	}
 	if ev.aggregate != nil {
-		a.invalidateCharts()
+		a.requestAggregateRender()
 	} else {
-		a.invalidateRealtimeChart()
+		a.requestRealtimeRender()
 	}
 }
 
@@ -1557,23 +1563,94 @@ func summaryBackgroundColor(severity int) walk.Color {
 	return severityColor(severity)
 }
 
+func (a *app) requestRealtimeRender() {
+	a.pendingStatus = true
+	a.pendingRealtime = true
+	a.scheduleRender()
+}
+
+func (a *app) requestAggregateRender() {
+	a.pendingStatus = true
+	a.pendingRealtime = true
+	a.pendingAggregate = true
+	a.scheduleRender()
+}
+
+func (a *app) scheduleRender() {
+	if renderThrottleDelay(a.lastRenderAt, time.Now()) <= 0 {
+		a.flushPendingRender()
+		return
+	}
+	if a.renderScheduled {
+		return
+	}
+	a.renderScheduled = true
+	delay := renderThrottleDelay(a.lastRenderAt, time.Now())
+	time.AfterFunc(delay, func() {
+		a.Synchronize(func() {
+			a.flushPendingRender()
+		})
+	})
+}
+
+func (a *app) flushPendingRender() {
+	a.renderScheduled = false
+	if !a.pendingStatus && !a.pendingRealtime && !a.pendingAggregate {
+		return
+	}
+	updateStatus := a.pendingStatus
+	invalidateRealtime := a.pendingRealtime
+	invalidateAggregate := a.pendingAggregate
+	a.pendingStatus = false
+	a.pendingRealtime = false
+	a.pendingAggregate = false
+
+	if updateStatus {
+		a.updateCurrentLabel()
+	}
+	if invalidateAggregate {
+		a.invalidateCharts()
+	} else if invalidateRealtime {
+		a.invalidateRealtimeChart()
+	}
+	a.lastRenderAt = time.Now()
+}
+
+func renderThrottleDelay(lastRenderAt, now time.Time) time.Duration {
+	if lastRenderAt.IsZero() {
+		return 0
+	}
+	next := lastRenderAt.Add(renderThrottleInterval)
+	if !now.Before(next) {
+		return 0
+	}
+	return next.Sub(now)
+}
+
 func (a *app) invalidateCharts() {
 	a.updateAdaptiveChartHeights()
 	a.invalidateRealtimeChart()
 	a.invalidateAggregateCharts()
+	a.lastRenderAt = time.Now()
 }
 
 func (a *app) invalidateRealtimeChart() {
 	if a.rttChart != nil && a.rttChart.Visible() {
 		a.rttChart.Invalidate()
+		a.lastRenderAt = time.Now()
 	}
 }
 
 func (a *app) invalidateAggregateCharts() {
+	invalidated := false
 	for _, chart := range []*walk.CustomWidget{a.rttChart, a.p95Chart, a.lossChart, a.jitterChart} {
 		if chart != nil && chart != a.rttChart && chart.Visible() {
 			chart.Invalidate()
+			invalidated = true
 		}
+	}
+	if invalidated {
+		a.lastRenderAt = time.Now()
 	}
 }
 

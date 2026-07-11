@@ -595,6 +595,7 @@
         <li>The live latency chart uses 10 pixels per sample slot: a 4-pixel group-colored bar centered between 3-pixel severity highlight margins. Multi-group samples sort RTT values low-to-high and draw each higher group's delta above the lower value. Packet loss is shown as a 10x10 group-colored cross with a 2-pixel stroke; only lost groups for that sample are stacked from the top of the plot, ordered group 3 above group 2 above group 1.</li>
         <li>Line charts project off-scale values to their true position and clip line segments at the plot edge instead of clamping the point to the maximum Y-axis value.</li>
         <li>X-axis labels use a shared time-tick selector with sensible time steps, second-level labels, at least three labels when space allows, and a density cap of roughly half the plot width.</li>
+        <li>Measurement samples may be collected faster than the UI is painted. Chart and status rendering is coalesced to at most 10 updates per second so high-rate sampling remains readable and avoids unnecessary repaint work.</li>
         <li>When jitter is hidden, its vertical space is redistributed to visible charts.</li>
         <li>Loss and jitter charts can shrink when their data does not need full height, with the saved space redistributed to other charts.</li>
         <li>Adaptive chart heights are layout stretch weights, not hard widget minimum heights; layout updates, history loads, start/stop actions, and jitter visibility changes must not increase the window height chosen by the user.</li>
@@ -791,6 +792,8 @@
         <div>Raised the measurement-rate limit to 50/sec, allowed 1-second and 2-second aggregation windows, changed the bottom-left count label from pings to samples, and added validation so each aggregate window contains at least two samples.</div>
         <div><strong>Target group labels</strong></div>
         <div>Removed separate <code>Group N</code> rows, moved the group number into the name label, changed target labels to indented <code>Target(s)</code>, added tooltips explaining the optional group name and comma-separated target list, escaped literal ampersands in profile names, and added Start/Stop keyboard mnemonics.</div>
+        <div><strong>Render throttling</strong></div>
+        <div>Limited chart and status rendering to at most 10 updates per second while still recording all measurement samples at the configured rate.</div>
       </div>
     </section>
   </main>
