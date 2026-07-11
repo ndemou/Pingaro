@@ -223,6 +223,7 @@ type app struct {
 	lossChart    *walk.CustomWidget
 	jitterChart  *walk.CustomWidget
 	currentLabel *walk.Label
+	summaryTitle *walk.Label
 	summaryPanel *walk.Composite
 	summaryLabel *walk.TextLabel
 
@@ -514,6 +515,7 @@ func (a *app) run() error {
 							},
 							VSpacer{},
 							Label{AssignTo: &a.currentLabel, Text: "No measurements yet"},
+							Label{AssignTo: &a.summaryTitle, Text: "Quality Assesment", Visible: false},
 							Composite{
 								AssignTo: &a.summaryPanel,
 								Layout:   VBox{Margins: Margins{Left: 6, Top: 4, Right: 6, Bottom: 4}},
@@ -1425,6 +1427,9 @@ func (a *app) setConnectionSummary(text string, severity int, visible bool) {
 		return
 	}
 	_ = a.summaryLabel.SetText(text)
+	if a.summaryTitle != nil {
+		a.summaryTitle.SetVisible(visible)
+	}
 	if severity != a.summarySeverity {
 		brush, err := walk.NewSolidColorBrush(summaryBackgroundColor(severity))
 		if err == nil {
@@ -2204,6 +2209,7 @@ func drawRealtimeBarChart(canvas *walk.Canvas, rect walk.Rectangle, samples []re
 func drawRealtimeBarHighlights(canvas *walk.Canvas, plot walk.Rectangle, samples []realtimeBarSample) error {
 	brushes := map[walk.Color]*walk.SolidColorBrush{}
 	defer disposeSolidBrushes(brushes)
+	band := issueMarkerBand(plot)
 	for i, sample := range samples {
 		severity := realtimeBarSampleSeverity(sample)
 		if severity == 0 {
@@ -2213,7 +2219,7 @@ func drawRealtimeBarHighlights(canvas *walk.Canvas, plot walk.Rectangle, samples
 		if err != nil {
 			return err
 		}
-		slot := walk.Rectangle{X: realtimeBarSlotLeft(plot, i, len(samples)), Y: plot.Y, Width: realtimePixelsPerSample, Height: plot.Height}
+		slot := walk.Rectangle{X: realtimeBarSlotLeft(plot, i, len(samples)), Y: band.Y, Width: realtimePixelsPerSample, Height: band.Height}
 		if err := fillClippedRectanglePixels(canvas, plot, slot, brush); err != nil {
 			return err
 		}
@@ -2593,6 +2599,7 @@ func drawWarningBars(canvas *walk.Canvas, plot walk.Rectangle, points []chartPoi
 	if len(points) == 0 || !end.After(start) {
 		return nil
 	}
+	band := issueMarkerBand(plot)
 	for _, p := range points {
 		if p.severity == 0 || p.at.Before(start) || p.at.After(end) {
 			continue
@@ -2602,13 +2609,18 @@ func drawWarningBars(canvas *walk.Canvas, plot walk.Rectangle, points []chartPoi
 		if err != nil {
 			return err
 		}
-		err = canvas.FillRectanglePixels(brush, walk.Rectangle{X: x - 3, Y: plot.Y, Width: 7, Height: plot.Height})
+		err = fillClippedRectanglePixels(canvas, plot, walk.Rectangle{X: x - 3, Y: band.Y, Width: 7, Height: band.Height}, brush)
 		brush.Dispose()
 		if err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func issueMarkerBand(plot walk.Rectangle) walk.Rectangle {
+	height := max(1, plot.Height/4)
+	return walk.Rectangle{X: plot.X, Y: plot.Y + plot.Height - height, Width: plot.Width, Height: height}
 }
 
 func severityColor(severity int) walk.Color {

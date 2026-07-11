@@ -179,6 +179,20 @@ func TestSeverityColors(t *testing.T) {
 	}
 }
 
+func TestIssueMarkerBandUsesBottomQuarterOfPlot(t *testing.T) {
+	plot := walk.Rectangle{X: 10, Y: 20, Width: 80, Height: 100}
+	got := issueMarkerBand(plot)
+	want := walk.Rectangle{X: 10, Y: 95, Width: 80, Height: 25}
+	if got != want {
+		t.Fatalf("issueMarkerBand() = %+v, want %+v", got, want)
+	}
+
+	tiny := issueMarkerBand(walk.Rectangle{X: 1, Y: 2, Width: 3, Height: 3})
+	if tiny.Height != 1 || tiny.Y != 4 {
+		t.Fatalf("tiny issueMarkerBand() = %+v, want height 1 at bottom", tiny)
+	}
+}
+
 func TestDefaultGroupsPutGatewayBeforeInternet(t *testing.T) {
 	got := defaultGroups()
 	if len(got) != 2 {

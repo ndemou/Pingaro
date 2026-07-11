@@ -531,7 +531,7 @@
 
     <section id="summary">
       <h2>Overall Status Label</h2>
-      <p>The bold overall status label appears under the total ping count. It summarizes connection quality without requiring users to read every chart.</p>
+      <p>The bold overall status label appears under the total sample count, introduced by the <strong>Quality Assesment</strong> heading. It summarizes connection quality without requiring users to read every chart.</p>
       <table>
         <tr>
           <th>Situation</th>
@@ -589,10 +589,11 @@
       <ul>
         <li>The first screen is the actual monitoring dashboard, not a landing page.</li>
         <li>The left pane contains target groups, <strong>Use profiles (choose all that apply)</strong>, measurement rate, aggregation window, actions, and a History heading over the Save and Load buttons. Target group inputs are labeled as <strong>Group N name</strong> and an indented <strong>Target(s)</strong>; the name field is optional, and the targets field accepts one or more comma-separated IPs or host names.</li>
-        <li>The total sample count, overall status, and build metadata sit at the bottom-left of the window so developers can identify the exact running build without opening external release notes.</li>
+        <li>The total sample count, <strong>Quality Assesment</strong> heading, overall status, and build metadata sit at the bottom-left of the window so developers can identify the exact running build without opening external release notes.</li>
         <li>The right pane contains the live latency chart and aggregate charts.</li>
-        <li>Chart headers, last values, plot area, axis labels, and warning regions are custom-painted inside Walk <code>CustomWidget</code> controls.</li>
+        <li>Chart headers, last values, plot area, axis labels, and issue markers are custom-painted inside Walk <code>CustomWidget</code> controls.</li>
         <li>The live latency chart uses 10 pixels per sample slot: a 4-pixel group-colored bar centered between 3-pixel severity highlight margins. Multi-group samples sort RTT values low-to-high and draw each higher group's delta above the lower value. Packet loss is shown as a 10x10 group-colored cross with a 2-pixel stroke; only lost groups for that sample are stacked from the top of the plot, ordered group 3 above group 2 above group 1.</li>
+        <li>Grey, yellow, and red issue markers use only the bottom 25% of each plot instead of covering the full plot height.</li>
         <li>Line charts project off-scale values to their true position and clip line segments at the plot edge instead of clamping the point to the maximum Y-axis value.</li>
         <li>X-axis labels use a shared time-tick selector with sensible time steps, second-level labels, at least three labels when space allows, and a density cap of roughly half the plot width.</li>
         <li>Measurement samples may be collected faster than the UI is painted. Chart and status rendering is coalesced to at most 10 updates per second so high-rate sampling remains readable and avoids unnecessary repaint work.</li>
