@@ -4,10 +4,12 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/lxn/walk"
+	"github.com/lxn/win"
 )
 
 func TestParseHistoryRecordsMixedPrettyAndLineJSON(t *testing.T) {
@@ -77,6 +79,25 @@ func TestDefaultGroupColors(t *testing.T) {
 		if got[i] != want[i] {
 			t.Fatalf("group color %d = %#x, want %#x", i+1, uint32(got[i]), uint32(want[i]))
 		}
+	}
+}
+
+func TestHResultErrorDoesNotExposeWalkStack(t *testing.T) {
+	got := hresultError("IFileDialog.Show", win.HRESULT(-2147023673)).Error()
+	if !strings.Contains(got, "HRESULT 0x800704C7") {
+		t.Fatalf("hresultError() = %q, want HRESULT", got)
+	}
+	if strings.Contains(got, "Stack:") {
+		t.Fatalf("hresultError() exposed stack: %q", got)
+	}
+}
+
+func TestIsCancelledHResult(t *testing.T) {
+	if !isCancelledHResult(win.HRESULT(-2147023673)) {
+		t.Fatalf("expected cancel HRESULT to be recognized")
+	}
+	if isCancelledHResult(win.S_OK) {
+		t.Fatalf("S_OK must not be treated as cancellation")
 	}
 }
 

@@ -874,35 +874,29 @@ func (a *app) ensureAutosaveHistoryPath() (string, error) {
 }
 
 func (a *app) saveHistoryDialog() {
-	dlg := new(walk.FileDialog)
-	dlg.Title = "Save Pingaro History"
-	dlg.Filter = "Pingaro History (*.json)|*.json|All Files (*.*)|*.*"
-	dlg.FilePath = activeDefaultHistoryPath()
-	if ok, err := dlg.ShowSave(a.MainWindow); err != nil {
+	path, ok, err := showHistoryFileDialog(a.MainWindow, "Save Pingaro History", activeDefaultHistoryPath(), true)
+	if err != nil {
 		walk.MsgBox(a.MainWindow, "Pingaro", err.Error(), walk.MsgBoxIconError)
 		return
 	} else if !ok {
 		return
 	}
 	a.saveInputs()
-	if err := a.saveHistory(dlg.FilePath); err != nil {
+	if err := a.saveHistory(path); err != nil {
 		walk.MsgBox(a.MainWindow, "Pingaro", err.Error(), walk.MsgBoxIconError)
 		return
 	}
 }
 
 func (a *app) loadHistoryDialog() {
-	dlg := new(walk.FileDialog)
-	dlg.Title = "Load Pingaro History"
-	dlg.Filter = "Pingaro History (*.json)|*.json|All Files (*.*)|*.*"
-	dlg.FilePath = activeDefaultHistoryPath()
-	if ok, err := dlg.ShowOpen(a.MainWindow); err != nil {
+	path, ok, err := showHistoryFileDialog(a.MainWindow, "Load Pingaro History", activeDefaultHistoryPath(), false)
+	if err != nil {
 		walk.MsgBox(a.MainWindow, "Pingaro", err.Error(), walk.MsgBoxIconError)
 		return
 	} else if !ok {
 		return
 	}
-	if err := a.loadHistory(dlg.FilePath); err != nil {
+	if err := a.loadHistory(path); err != nil {
 		walk.MsgBox(a.MainWindow, "Pingaro", err.Error(), walk.MsgBoxIconError)
 	}
 }
