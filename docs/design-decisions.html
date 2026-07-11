@@ -444,6 +444,8 @@
         <li>For Internet quality, Pingaro can ping multiple well-known hosts in parallel.</li>
         <li>If at least one Internet target replies in a batch, the batch is treated as successful and the minimum RTT is used.</li>
         <li>This reduces false alarms caused by one public host having a temporary issue.</li>
+        <li>Internally, probe outcomes distinguish replies, network loss, cancellation, local failures, and intentionally not-sent probes. Only timeout, unreachable, and TTL-expired outcomes count as packet loss.</li>
+        <li>Lost samples are tracked with explicit state in memory. Version-1 history remains compatible: saved lost samples still use the legacy <code>rtt: 9999</code> representation, and loading treats <code>lost: true</code> as authoritative.</li>
       </ul>
     </section>
 
@@ -764,6 +766,8 @@
         <div>Changed the default graph palette to group 1 <code>#009ade</code>, group 2 <code>#af59ba</code>, and group 3 <code>#ff1f5b</code>.</div>
         <div><strong>Use profile thresholds</strong></div>
         <div>Updated RTT, loss, and jitter thresholds for Browsing &amp; Email, Remote Desktop, Audio Calls, Video Calls, Online Gaming, and Superhuman Gaming.</div>
+        <div><strong>Typed probe outcomes</strong></div>
+        <div>Changed the internal measurement model to use typed outcomes and explicit reply/loss state instead of status strings and a magic lost RTT value, while preserving version-1 history compatibility.</div>
       </div>
     </section>
   </main>

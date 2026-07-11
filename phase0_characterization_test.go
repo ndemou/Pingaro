@@ -14,7 +14,7 @@ import (
 func TestPingBatchSucceedsWhenOneTargetReplies(t *testing.T) {
 	at := time.Date(2026, time.July, 11, 10, 0, 0, 0, time.Local)
 	prober := fakePingProber(map[string]pingResult{
-		"1.1.1.1": {sentAt: at, rtt: lostRTT, destination: "1.1.1.1", kind: probe.OutcomeTimeout, warning: "request timed out"},
+		"1.1.1.1": {sentAt: at, destination: "1.1.1.1", kind: probe.OutcomeTimeout, warning: "request timed out"},
 		"8.8.8.8": {sentAt: at, rtt: 42, destination: "8.8.8.8", kind: probe.OutcomeReply},
 	})
 
@@ -47,16 +47,16 @@ func TestPingBatchSelectsMinimumRTTWhenSeveralTargetsReply(t *testing.T) {
 func TestPingBatchAllFailuresAreLostAndKeepDiagnostics(t *testing.T) {
 	at := time.Date(2026, time.July, 11, 10, 0, 0, 0, time.Local)
 	prober := fakePingProber(map[string]pingResult{
-		"timeout":     {sentAt: at, rtt: lostRTT, destination: "timeout", kind: probe.OutcomeTimeout, warning: "request timed out"},
-		"unreachable": {sentAt: at, rtt: lostRTT, destination: "unreachable", kind: probe.OutcomeUnreachable, warning: "destination host unreachable"},
+		"timeout":     {sentAt: at, destination: "timeout", kind: probe.OutcomeTimeout, warning: "request timed out"},
+		"unreachable": {sentAt: at, destination: "unreachable", kind: probe.OutcomeUnreachable, warning: "destination host unreachable"},
 	})
 
 	got := pingBatchWithProber(context.Background(), []string{"timeout", "unreachable"}, "Internet", at, prober)
 	if got.kind == probe.OutcomeReply {
 		t.Fatalf("kind = %v, want non-reply", got.kind)
 	}
-	if got.rtt != lostRTT {
-		t.Fatalf("rtt = %d, want lostRTT", got.rtt)
+	if got.rtt != 0 {
+		t.Fatalf("rtt = %d, want 0 for non-reply", got.rtt)
 	}
 	for _, want := range []string{"timeout: request timed out", "unreachable: destination host unreachable"} {
 		if !strings.Contains(got.warning, want) {
@@ -68,8 +68,8 @@ func TestPingBatchAllFailuresAreLostAndKeepDiagnostics(t *testing.T) {
 func TestPingBatchRetainsCancelledAndLocalFailureDiagnostics(t *testing.T) {
 	at := time.Date(2026, time.July, 11, 10, 0, 0, 0, time.Local)
 	prober := fakePingProber(map[string]pingResult{
-		"cancelled": {sentAt: at, rtt: lostRTT, destination: "cancelled", kind: probe.OutcomeCancelled, warning: "context cancelled"},
-		"local":     {sentAt: at, rtt: lostRTT, destination: "local", kind: probe.OutcomeLocalFailure, warning: "local process failure"},
+		"cancelled": {sentAt: at, destination: "cancelled", kind: probe.OutcomeCancelled, warning: "context cancelled"},
+		"local":     {sentAt: at, destination: "local", kind: probe.OutcomeLocalFailure, warning: "local process failure"},
 	})
 
 	got := pingBatchWithProber(context.Background(), []string{"cancelled", "local"}, "Internet", at, prober)
@@ -89,7 +89,13 @@ func TestStatsIntsFreezesExistingPercentileBehavior(t *testing.T) {
 }
 
 func TestP95JitterSkipsLostSamplesAndUsesExistingPercentile(t *testing.T) {
-	got := p95Jitter([]int{100, 140, lostRTT, 200, 260})
+	got := p95Jitter([]observation{
+		{rtt: 100, replied: true},
+		{rtt: 140, replied: true},
+		{lost: true},
+		{rtt: 200, replied: true},
+		{rtt: 260, replied: true},
+	})
 	if got != 20 {
 		t.Fatalf("p95Jitter() = %v, want 20", got)
 	}
@@ -109,8 +115,8 @@ func TestStreamStateAcceptTracksLossMinMaxAndAggregationBoundary(t *testing.T) {
 		t.Fatalf("first event = %+v", first)
 	}
 
-	lost := state.accept(pingResult{sentAt: at.Add(time.Second), rtt: lostRTT, kind: probe.OutcomeTimeout})
-	if !lost.lost || lost.rtt != lostRTT || lost.total != 2 || lost.lostTotal != 1 || lost.lossPercent != 50 || lost.windowLoss != 50 {
+	lost := state.accept(pingResult{sentAt: at.Add(time.Second), kind: probe.OutcomeTimeout})
+	if !lost.lost || lost.rtt != 0 || lost.replied || lost.total != 2 || lost.lostTotal != 1 || lost.lossPercent != 50 || lost.windowLoss != 50 {
 		t.Fatalf("lost event = %+v", lost)
 	}
 	if lost.minRTT != 100 || lost.maxRTT != 100 {
@@ -137,8 +143,8 @@ func TestStreamStateAllLossesHaveZeroRTTStatsAndFullLoss(t *testing.T) {
 	at := time.Date(2026, time.July, 11, 10, 0, 0, 0, time.Local)
 	state := streamState{targetLabel: "Internet", aggSeconds: 60, pingsPerBatch: 1, minRTT: math.MaxInt}
 
-	state.accept(pingResult{sentAt: at, rtt: lostRTT, kind: probe.OutcomeTimeout})
-	got := state.accept(pingResult{sentAt: at.Add(time.Second), rtt: lostRTT, kind: probe.OutcomeTimeout})
+	state.accept(pingResult{sentAt: at, kind: probe.OutcomeTimeout})
+	got := state.accept(pingResult{sentAt: at.Add(time.Second), kind: probe.OutcomeTimeout})
 	if got.minRTT != 0 || got.maxRTT != 0 || got.p95 != 0 || got.jitterP95 != 0 {
 		t.Fatalf("all-loss stats = min %d max %d p95 %v jitter %v, want zero RTT stats", got.minRTT, got.maxRTT, got.p95, got.jitterP95)
 	}
@@ -167,7 +173,7 @@ type fakePingProber map[string]pingResult
 func (p fakePingProber) Probe(ctx context.Context, req probe.Request) probe.Outcome {
 	result, ok := p[req.Target]
 	if !ok {
-		result = pingResult{rtt: lostRTT, destination: req.Target, kind: probe.OutcomeTimeout, warning: "missing fake result"}
+		result = pingResult{destination: req.Target, kind: probe.OutcomeTimeout, warning: "missing fake result"}
 	}
 	result.sentAt = req.SentAt
 	switch result.kind {

@@ -28,7 +28,7 @@ import (
 	"pingaro/internal/targets"
 )
 
-const lostRTT = 9999
+const historyLostRTT = 9999
 
 const (
 	appIconResourceID      = 2
@@ -85,6 +85,7 @@ type sampleEvent struct {
 	at          time.Time
 	groupID     monitor.GroupID
 	rtt         int
+	replied     bool
 	lost        bool
 	targetLabel string
 	minRTT      int
@@ -111,7 +112,7 @@ type streamState struct {
 	targetLabel   string
 	aggSeconds    int
 	pingsPerBatch int
-	rtts          []int
+	observations  []observation
 	total         int
 	lostTotal     int
 	minRTT        int
@@ -131,6 +132,8 @@ type aggregatePoint struct {
 type chartPoint struct {
 	at         time.Time
 	value      float64
+	hasValue   bool
+	lost       bool
 	groupIndex int
 	groupName  string
 	color      walk.Color
@@ -151,6 +154,12 @@ type realtimeBarSegment struct {
 	color     walk.Color
 	fromValue float64
 	toValue   float64
+}
+
+type observation struct {
+	rtt     int
+	replied bool
+	lost    bool
 }
 
 type timeAxisTick struct {
@@ -1003,11 +1012,15 @@ func samePath(a, b string) bool {
 }
 
 func historySampleFromEvent(s sampleEvent) historySample {
+	rtt := s.rtt
+	if s.lost {
+		rtt = historyLostRTT
+	}
 	return historySample{
 		At:          s.at,
 		GroupIndex:  s.groupID.Index(),
 		GroupName:   s.targetLabel,
-		RTT:         s.rtt,
+		RTT:         rtt,
 		Lost:        s.lost,
 		MinRTT:      s.minRTT,
 		MaxRTT:      s.maxRTT,
@@ -1067,10 +1080,15 @@ func (a *app) loadHistory(path string) error {
 			if name == "" {
 				name = fmt.Sprintf("Group %d", idx+1)
 			}
+			rtt := s.RTT
+			if s.Lost {
+				rtt = 0
+			}
 			a.samples = append(a.samples, sampleEvent{
 				at:          s.At,
 				groupID:     groupIDFromIndex(idx),
-				rtt:         s.RTT,
+				rtt:         rtt,
+				replied:     !s.Lost,
 				lost:        s.Lost,
 				targetLabel: name,
 				minRTT:      s.MinRTT,
@@ -1506,14 +1524,14 @@ func (a *app) rttPoints() ([]chartPoint, time.Time, float64) {
 			continue
 		}
 		groupIndex := s.groupID.Index()
-		value := float64(s.rtt)
+		value := 0.0
+		hasValue := false
 		severity := 0
 		lossWindows[groupIndex] = append(lossWindows[groupIndex], s.lost)
 		if len(lossWindows[groupIndex]) > 10 {
 			lossWindows[groupIndex] = lossWindows[groupIndex][len(lossWindows[groupIndex])-10:]
 		}
 		if s.lost {
-			value = lostRTT
 			lostCount := 0
 			for _, lost := range lossWindows[groupIndex] {
 				if lost {
@@ -1521,24 +1539,26 @@ func (a *app) rttPoints() ([]chartPoint, time.Time, float64) {
 				}
 			}
 			severity = min(3, lostCount)
-		} else {
+		} else if s.replied {
+			value = float64(s.rtt)
+			hasValue = true
 			severity = thresholdSeverity(value, profile.RTT)
 		}
-		points = append(points, chartPoint{at: s.at, value: value, groupIndex: groupIndex, groupName: s.targetLabel, color: a.groupColor(s.groupID), severity: severity})
+		points = append(points, chartPoint{at: s.at, value: value, hasValue: hasValue, lost: s.lost, groupIndex: groupIndex, groupName: s.targetLabel, color: a.groupColor(s.groupID), severity: severity})
 	}
-	maxValue := bucketedYMax(points, rttYMaxBuckets, lostRTT)
+	maxValue := bucketedYMax(points, rttYMaxBuckets)
 	return points, now, maxValue
 }
 
 func (a *app) paintRTT(canvas *walk.Canvas, bounds walk.Rectangle) error {
 	points, now, _ := a.rttPoints()
 	headerRect, chartRect := splitChartBounds(a.rttChart.ClientBoundsPixels())
-	if err := drawChartHeader(canvas, headerRect, "Latency (live)", lastItems(points, "ms", lostRTT, true)); err != nil {
+	if err := drawChartHeader(canvas, headerRect, "Latency (live)", lastItems(points, "ms", true)); err != nil {
 		return err
 	}
 	plot := plotBounds(chartRect)
 	samples := visibleRealtimeBarSamples(points, plot.Width)
-	maxValue := bucketedYMax(realtimeBarSamplePoints(samples), rttYMaxBuckets, lostRTT)
+	maxValue := bucketedYMax(realtimeBarSamplePoints(samples), rttYMaxBuckets)
 	start, end := realtimeBarTimeRange(samples, now)
 	return drawRealtimeBarChart(canvas, chartRect, samples, start, end, 20*time.Second, 0, maxValue, "ms")
 }
@@ -1547,16 +1567,16 @@ func (a *app) p95Points() ([]chartPoint, float64) {
 	points := make([]chartPoint, 0, len(a.aggregates))
 	profile := a.selectedProfile()
 	for _, p := range a.aggregates {
-		points = append(points, chartPoint{at: p.at, value: p.p95, groupIndex: p.groupID.Index(), groupName: p.groupName, color: a.groupColor(p.groupID), severity: thresholdSeverity(p.p95, profile.RTT)})
+		points = append(points, chartPoint{at: p.at, value: p.p95, hasValue: true, groupIndex: p.groupID.Index(), groupName: p.groupName, color: a.groupColor(p.groupID), severity: thresholdSeverity(p.p95, profile.RTT)})
 	}
-	maxValue := bucketedYMax(points, rttYMaxBuckets, -1)
+	maxValue := bucketedYMax(points, rttYMaxBuckets)
 	return points, maxValue
 }
 
 func (a *app) paintP95(canvas *walk.Canvas, bounds walk.Rectangle) error {
 	points, maxValue := a.p95Points()
 	headerRect, chartRect := splitChartBounds(a.p95Chart.ClientBoundsPixels())
-	if err := drawChartHeader(canvas, headerRect, "Latency per "+periodLabel(a.period)+" (p95 of RTT)", lastItems(points, "ms", -1, false)); err != nil {
+	if err := drawChartHeader(canvas, headerRect, "Latency per "+periodLabel(a.period)+" (p95 of RTT)", lastItems(points, "ms", false)); err != nil {
 		return err
 	}
 	return a.drawAggregateChart(canvas, chartRect, points, maxValue, "ms", walk.RGB(40, 150, 135))
@@ -1566,7 +1586,7 @@ func (a *app) lossPoints() []chartPoint {
 	points := make([]chartPoint, 0, len(a.aggregates))
 	profile := a.selectedProfile()
 	for _, p := range a.aggregates {
-		points = append(points, chartPoint{at: p.at, value: p.loss, groupIndex: p.groupID.Index(), groupName: p.groupName, color: a.groupColor(p.groupID), severity: thresholdSeverity(p.loss, profile.Loss)})
+		points = append(points, chartPoint{at: p.at, value: p.loss, hasValue: true, groupIndex: p.groupID.Index(), groupName: p.groupName, color: a.groupColor(p.groupID), severity: thresholdSeverity(p.loss, profile.Loss)})
 	}
 	return points
 }
@@ -1574,26 +1594,26 @@ func (a *app) lossPoints() []chartPoint {
 func (a *app) paintLoss(canvas *walk.Canvas, bounds walk.Rectangle) error {
 	points := a.lossPoints()
 	headerRect, chartRect := splitChartBounds(a.lossChart.ClientBoundsPixels())
-	if err := drawChartHeader(canvas, headerRect, "Packet loss per "+periodLabel(a.period)+" (%)", lastItems(points, "%", -1, false)); err != nil {
+	if err := drawChartHeader(canvas, headerRect, "Packet loss per "+periodLabel(a.period)+" (%)", lastItems(points, "%", false)); err != nil {
 		return err
 	}
-	return a.drawAggregateChart(canvas, chartRect, points, bucketedYMax(points, lossYMaxBuckets, -1), "%", walk.RGB(200, 75, 88))
+	return a.drawAggregateChart(canvas, chartRect, points, bucketedYMax(points, lossYMaxBuckets), "%", walk.RGB(200, 75, 88))
 }
 
 func (a *app) jitterPoints() ([]chartPoint, float64) {
 	points := make([]chartPoint, 0, len(a.aggregates))
 	profile := a.selectedProfile()
 	for _, p := range a.aggregates {
-		points = append(points, chartPoint{at: p.at, value: p.jitterP95, groupIndex: p.groupID.Index(), groupName: p.groupName, color: a.groupColor(p.groupID), severity: thresholdSeverity(p.jitterP95, profile.Jitter)})
+		points = append(points, chartPoint{at: p.at, value: p.jitterP95, hasValue: true, groupIndex: p.groupID.Index(), groupName: p.groupName, color: a.groupColor(p.groupID), severity: thresholdSeverity(p.jitterP95, profile.Jitter)})
 	}
-	maxValue := bucketedYMax(points, jitterYMaxBuckets, -1)
+	maxValue := bucketedYMax(points, jitterYMaxBuckets)
 	return points, maxValue
 }
 
 func (a *app) paintJitter(canvas *walk.Canvas, bounds walk.Rectangle) error {
 	points, maxValue := a.jitterPoints()
 	headerRect, chartRect := splitChartBounds(a.jitterChart.ClientBoundsPixels())
-	if err := drawChartHeader(canvas, headerRect, "One-way jitter per "+periodLabel(a.period)+" (p95)", lastItems(points, "ms", -1, false)); err != nil {
+	if err := drawChartHeader(canvas, headerRect, "One-way jitter per "+periodLabel(a.period)+" (p95)", lastItems(points, "ms", false)); err != nil {
 		return err
 	}
 	return a.drawAggregateChart(canvas, chartRect, points, maxValue, "ms", walk.RGB(215, 160, 70))
@@ -1745,10 +1765,10 @@ func realtimeBarSampleSeverity(sample realtimeBarSample) int {
 	return severity
 }
 
-func realtimeBarSegments(points []chartPoint, yMin float64, special float64) []realtimeBarSegment {
+func realtimeBarSegments(points []chartPoint, yMin float64) []realtimeBarSegment {
 	usable := make([]chartPoint, 0, len(points))
 	for _, p := range points {
-		if p.value == special {
+		if !p.hasValue {
 			continue
 		}
 		usable = append(usable, p)
@@ -1843,7 +1863,7 @@ func drawRealtimeBars(canvas *walk.Canvas, plot walk.Rectangle, samples []realti
 	defer disposeSolidBrushes(brushes)
 	for i, sample := range samples {
 		barX := realtimeBarSlotLeft(plot, i, len(samples)) + realtimeBarHighlightPadding
-		for _, segment := range realtimeBarSegments(sample.points, yMin, lostRTT) {
+		for _, segment := range realtimeBarSegments(sample.points, yMin) {
 			brush, err := cachedSolidBrush(brushes, segment.color)
 			if err != nil {
 				return err
@@ -1861,7 +1881,7 @@ func drawRealtimeBars(canvas *walk.Canvas, plot walk.Rectangle, samples []realti
 			}
 		}
 		for _, p := range sample.points {
-			if p.value != lostRTT {
+			if !p.lost {
 				continue
 			}
 			brush, err := cachedSolidBrush(brushes, p.color)
@@ -2235,12 +2255,15 @@ func thresholdSeverity(value float64, thresholds [3]float64) int {
 	return int(profiles.ThresholdSeverity(value, thresholds))
 }
 
-func lastItems(points []chartPoint, unit string, special float64, includeGroupName bool) []lastItem {
+func lastItems(points []chartPoint, unit string, includeGroupName bool) []lastItem {
 	if len(points) == 0 {
 		return nil
 	}
 	latest := map[int]chartPoint{}
 	for _, p := range points {
+		if !p.hasValue && !p.lost {
+			continue
+		}
 		old, ok := latest[p.groupIndex]
 		if !ok || p.at.After(old.at) {
 			latest[p.groupIndex] = p
@@ -2255,7 +2278,7 @@ func lastItems(points []chartPoint, unit string, special float64, includeGroupNa
 	for _, k := range keys {
 		p := latest[k]
 		text := formatNumber(p.value) + " " + unit
-		if special >= 0 && p.value == special {
+		if p.lost {
 			text = "lost"
 		}
 		if includeGroupName {
@@ -2376,12 +2399,12 @@ func (s *streamState) accept(r pingResult) sampleEvent {
 	if s.lastAgg.IsZero() {
 		s.lastAgg = r.sentAt
 	}
+	replied := r.kind == probe.OutcomeReply
 	lost := r.kind.CountsAsNetworkLoss()
-	value := r.rtt
 	if lost {
-		value = lostRTT
 		s.lostTotal++
-	} else {
+	}
+	if replied {
 		if r.rtt < s.minRTT {
 			s.minRTT = r.rtt
 		}
@@ -2390,21 +2413,21 @@ func (s *streamState) accept(r pingResult) sampleEvent {
 		}
 	}
 	s.total++
-	s.rtts = append(s.rtts, value)
+	s.observations = append(s.observations, observation{rtt: r.rtt, replied: replied, lost: lost})
 	keep := max(600, s.aggSeconds*s.pingsPerBatch*2)
-	if len(s.rtts) > keep {
-		s.rtts = append([]int(nil), s.rtts[len(s.rtts)-keep:]...)
+	if len(s.observations) > keep {
+		s.observations = append([]observation(nil), s.observations[len(s.observations)-keep:]...)
 	}
-	windowSize := min(len(s.rtts), max(1, s.aggSeconds*s.pingsPerBatch))
-	window := s.rtts[len(s.rtts)-windowSize:]
-	ok := withoutLost(window)
+	windowSize := min(len(s.observations), max(1, s.aggSeconds*s.pingsPerBatch))
+	window := s.observations[len(s.observations)-windowSize:]
+	ok := repliedRTTs(window)
 	p95 := 0.0
 	if len(ok) > 0 {
 		p95 = statsInts(ok).p95
 	}
 	lostWindow := 0
-	for _, v := range window {
-		if v == lostRTT {
+	for _, obs := range window {
+		if obs.lost {
 			lostWindow++
 		}
 	}
@@ -2415,7 +2438,8 @@ func (s *streamState) accept(r pingResult) sampleEvent {
 	ev := sampleEvent{
 		at:          r.sentAt,
 		groupID:     s.groupID,
-		rtt:         value,
+		rtt:         r.rtt,
+		replied:     replied,
 		lost:        lost,
 		targetLabel: s.targetLabel,
 		minRTT:      minRTT,
@@ -2465,7 +2489,7 @@ func pingBatchWithProber(ctx context.Context, hosts []string, destination string
 	}
 	wg.Wait()
 	close(ch)
-	best := pingResult{sentAt: sentAt, rtt: lostRTT, destination: destination, kind: probe.OutcomeLocalFailure}
+	best := pingResult{sentAt: sentAt, destination: destination, kind: probe.OutcomeLocalFailure}
 	warnings := make([]string, 0, len(hosts))
 	for r := range ch {
 		if r.kind == probe.OutcomeReply {
@@ -2492,7 +2516,7 @@ func pingResultFromOutcome(outcome probe.Outcome) pingResult {
 		rtt = max(1, int(math.Round(float64(duration)/float64(time.Millisecond))))
 	}
 	if outcome.Kind() != probe.OutcomeReply || rtt <= 0 {
-		rtt = lostRTT
+		rtt = 0
 	}
 	destination := outcome.Request().Target
 	if address, ok := outcome.Address(); ok {
@@ -2525,15 +2549,15 @@ func statsInts(values []int) stats {
 	return stats{min: f[0], p5: f[p5], median: f[len(f)/2], p95: f[p95], max: f[len(f)-1]}
 }
 
-func p95Jitter(values []int) float64 {
+func p95Jitter(values []observation) float64 {
 	if len(values) < 2 {
 		return 0
 	}
 	var jitters []int
 	prev := values[0]
 	for _, v := range values[1:] {
-		if v != lostRTT && prev != lostRTT {
-			jitters = append(jitters, int(math.Round(math.Abs(float64(v-prev))/2)))
+		if v.replied && prev.replied {
+			jitters = append(jitters, int(math.Round(math.Abs(float64(v.rtt-prev.rtt))/2)))
 		}
 		prev = v
 	}
@@ -2555,11 +2579,11 @@ func targetListNeedsGateway(values []string) bool {
 	return targets.NeedsGateway(values)
 }
 
-func withoutLost(values []int) []int {
+func repliedRTTs(values []observation) []int {
 	out := make([]int, 0, len(values))
-	for _, v := range values {
-		if v != lostRTT {
-			out = append(out, v)
+	for _, obs := range values {
+		if obs.replied {
+			out = append(out, obs.rtt)
 		}
 	}
 	return out
@@ -2642,24 +2666,21 @@ func periodLabel(d time.Duration) string {
 	return strings.TrimRight(strings.TrimRight(fmt.Sprintf("%.1f", minutes), "0"), ".") + " min"
 }
 
-func maxChartValue(points []chartPoint, special float64) float64 {
+func maxChartValue(points []chartPoint) float64 {
 	out := 0.0
 	for _, p := range points {
-		if special >= 0 && p.value == special {
-			continue
-		}
-		if p.value > out {
+		if p.hasValue && p.value > out {
 			out = p.value
 		}
 	}
 	return out
 }
 
-func bucketedYMax(points []chartPoint, buckets []float64, special float64) float64 {
+func bucketedYMax(points []chartPoint, buckets []float64) float64 {
 	if len(buckets) == 0 {
 		return 1
 	}
-	value := percentileValue(points, special, 0.90)
+	value := percentileValue(points, 0.90)
 	if value <= 0 {
 		return buckets[0]
 	}
@@ -2671,10 +2692,10 @@ func bucketedYMax(points []chartPoint, buckets []float64, special float64) float
 	return buckets[len(buckets)-1]
 }
 
-func percentileValue(points []chartPoint, special float64, percentile float64) float64 {
+func percentileValue(points []chartPoint, percentile float64) float64 {
 	values := make([]float64, 0, len(points))
 	for _, p := range points {
-		if special >= 0 && p.value == special {
+		if !p.hasValue {
 			continue
 		}
 		if math.IsNaN(p.value) || math.IsInf(p.value, 0) {
@@ -2695,7 +2716,7 @@ func adaptiveLossHeight(points []chartPoint) int {
 	if len(points) == 0 {
 		return aggregateChartHeight
 	}
-	maxLoss := maxChartValue(points, -1)
+	maxLoss := maxChartValue(points)
 	if maxLoss < 1 {
 		return max(1, aggregateChartHeight/3)
 	}
@@ -2709,7 +2730,7 @@ func adaptiveJitterHeight(points []chartPoint) int {
 	if len(points) == 0 {
 		return aggregateChartHeight
 	}
-	maxJitter := maxChartValue(points, -1)
+	maxJitter := maxChartValue(points)
 	if maxJitter < 20 {
 		return max(1, aggregateChartHeight/3)
 	}

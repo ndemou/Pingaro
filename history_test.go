@@ -346,19 +346,19 @@ func TestResolveTargetsDropsGatewayWhenGatewayMissing(t *testing.T) {
 
 func TestBucketedYMaxUsesSmallestBucketCovering90Percent(t *testing.T) {
 	points := []chartPoint{
-		{value: 3},
-		{value: 4},
-		{value: 5},
-		{value: 8},
-		{value: 16},
-		{value: 17},
-		{value: 30},
-		{value: 32},
-		{value: 33},
-		{value: 300},
+		{value: 3, hasValue: true},
+		{value: 4, hasValue: true},
+		{value: 5, hasValue: true},
+		{value: 8, hasValue: true},
+		{value: 16, hasValue: true},
+		{value: 17, hasValue: true},
+		{value: 30, hasValue: true},
+		{value: 32, hasValue: true},
+		{value: 33, hasValue: true},
+		{value: 300, hasValue: true},
 	}
 
-	got := bucketedYMax(points, rttYMaxBuckets, -1)
+	got := bucketedYMax(points, rttYMaxBuckets)
 	if got != 64 {
 		t.Fatalf("bucketedYMax() = %v, want 64", got)
 	}
@@ -469,13 +469,13 @@ func TestRealtimeBarSegmentsStackLowToHighAndSkipLoss(t *testing.T) {
 	mid := walk.RGB(4, 5, 6)
 	high := walk.RGB(7, 8, 9)
 	points := []chartPoint{
-		{value: 120, groupIndex: 2, color: high},
-		{value: lostRTT, groupIndex: 1, color: walk.RGB(10, 11, 12)},
-		{value: 40, groupIndex: 0, color: low},
-		{value: 90, groupIndex: 1, color: mid},
+		{value: 120, hasValue: true, groupIndex: 2, color: high},
+		{lost: true, groupIndex: 1, color: walk.RGB(10, 11, 12)},
+		{value: 40, hasValue: true, groupIndex: 0, color: low},
+		{value: 90, hasValue: true, groupIndex: 1, color: mid},
 	}
 
-	got := realtimeBarSegments(points, 0, lostRTT)
+	got := realtimeBarSegments(points, 0)
 	if len(got) != 3 {
 		t.Fatalf("segment count = %d, want 3: %#v", len(got), got)
 	}
@@ -824,7 +824,7 @@ func TestConnectionIssuesPreferAggregatesOverRealtime(t *testing.T) {
 	a := &app{
 		settings: savedConfig{UseTypes: []string{"Online Gaming"}},
 		samples: []sampleEvent{
-			{at: at, rtt: 300, targetLabel: "Internet"},
+			{at: at, rtt: 300, replied: true, targetLabel: "Internet"},
 		},
 		aggregates: []aggregatePoint{
 			{at: at, p95: 20, loss: 0, jitterP95: 0},
@@ -845,7 +845,7 @@ func TestConnectionIssuesFallBackToRealtimeBeforeAggregates(t *testing.T) {
 	a := &app{
 		settings: savedConfig{UseTypes: []string{"Online Gaming"}},
 		samples: []sampleEvent{
-			{at: at, rtt: 300, targetLabel: "Internet"},
+			{at: at, rtt: 300, replied: true, targetLabel: "Internet"},
 		},
 		historyViewEnd: at,
 	}
