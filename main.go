@@ -2179,6 +2179,11 @@ func drawRealtimeBarChart(canvas *walk.Canvas, rect walk.Rectangle, samples []re
 		return err
 	}
 	defer gridPen.Dispose()
+	labelFont, err := walk.NewFont("Segoe UI", 10, 0)
+	if err != nil {
+		return err
+	}
+	defer labelFont.Dispose()
 	yDivisions := yGridDivisions(rect.Height)
 	for i := 0; i <= yDivisions; i++ {
 		value := yMin + (yMax-yMin)*float64(i)/float64(yDivisions)
@@ -2187,7 +2192,7 @@ func drawRealtimeBarChart(canvas *walk.Canvas, rect walk.Rectangle, samples []re
 			return err
 		}
 		label := formatAxis(value) + " " + unit
-		_ = drawText(canvas, label, walk.Rectangle{X: rect.X + 4, Y: y - 9, Width: plot.X - rect.X - 8, Height: 18}, walk.RGB(80, 90, 100), walk.TextRight|walk.TextVCenter|walk.TextSingleLine)
+		_ = drawText(canvas, labelFont, label, walk.Rectangle{X: rect.X + 4, Y: y - 9, Width: plot.X - rect.X - 8, Height: 18}, walk.RGB(80, 90, 100), walk.TextRight|walk.TextVCenter|walk.TextSingleLine)
 	}
 	if xGrid > 0 {
 		duration := end.Sub(start)
@@ -2197,11 +2202,11 @@ func drawRealtimeBarChart(canvas *walk.Canvas, rect walk.Rectangle, samples []re
 			if err := canvas.DrawLinePixels(gridPen, walk.Point{X: x, Y: plot.Y}, walk.Point{X: x, Y: plot.Y + plot.Height}); err != nil {
 				return err
 			}
-			_ = drawText(canvas, tick.label, walk.Rectangle{X: x - xAxisLabelWidth/2, Y: plot.Y + plot.Height + 3, Width: xAxisLabelWidth, Height: 18}, walk.RGB(80, 90, 100), walk.TextCenter|walk.TextVCenter|walk.TextSingleLine)
+			_ = drawText(canvas, labelFont, tick.label, walk.Rectangle{X: x - xAxisLabelWidth/2, Y: plot.Y + plot.Height + 3, Width: xAxisLabelWidth, Height: 18}, walk.RGB(80, 90, 100), walk.TextCenter|walk.TextVCenter|walk.TextSingleLine)
 		}
 	}
 	if len(samples) == 0 {
-		return drawText(canvas, "No measurements yet", rect, walk.RGB(120, 130, 140), walk.TextCenter|walk.TextVCenter|walk.TextSingleLine)
+		return drawText(canvas, labelFont, "No measurements yet", rect, walk.RGB(120, 130, 140), walk.TextCenter|walk.TextVCenter|walk.TextSingleLine)
 	}
 	return drawRealtimeBars(canvas, plot, samples, yMin, yMax)
 }
@@ -2375,6 +2380,11 @@ func drawTimeChart(canvas *walk.Canvas, rect walk.Rectangle, points []chartPoint
 		return err
 	}
 	defer gridPen.Dispose()
+	labelFont, err := walk.NewFont("Segoe UI", 10, 0)
+	if err != nil {
+		return err
+	}
+	defer labelFont.Dispose()
 	if yMax <= yMin {
 		yMax = yMin + 1
 	}
@@ -2386,7 +2396,7 @@ func drawTimeChart(canvas *walk.Canvas, rect walk.Rectangle, points []chartPoint
 			return err
 		}
 		label := formatAxis(value) + " " + unit
-		_ = drawText(canvas, label, walk.Rectangle{X: rect.X + 4, Y: y - 9, Width: plot.X - rect.X - 8, Height: 18}, walk.RGB(80, 90, 100), walk.TextRight|walk.TextVCenter|walk.TextSingleLine)
+		_ = drawText(canvas, labelFont, label, walk.Rectangle{X: rect.X + 4, Y: y - 9, Width: plot.X - rect.X - 8, Height: 18}, walk.RGB(80, 90, 100), walk.TextRight|walk.TextVCenter|walk.TextSingleLine)
 	}
 	if xGrid > 0 {
 		duration := end.Sub(start)
@@ -2396,11 +2406,11 @@ func drawTimeChart(canvas *walk.Canvas, rect walk.Rectangle, points []chartPoint
 			if err := canvas.DrawLinePixels(gridPen, walk.Point{X: x, Y: plot.Y}, walk.Point{X: x, Y: plot.Y + plot.Height}); err != nil {
 				return err
 			}
-			_ = drawText(canvas, tick.label, walk.Rectangle{X: x - xAxisLabelWidth/2, Y: plot.Y + plot.Height + 3, Width: xAxisLabelWidth, Height: 18}, walk.RGB(80, 90, 100), walk.TextCenter|walk.TextVCenter|walk.TextSingleLine)
+			_ = drawText(canvas, labelFont, tick.label, walk.Rectangle{X: x - xAxisLabelWidth/2, Y: plot.Y + plot.Height + 3, Width: xAxisLabelWidth, Height: 18}, walk.RGB(80, 90, 100), walk.TextCenter|walk.TextVCenter|walk.TextSingleLine)
 		}
 	}
 	if len(points) == 0 {
-		return drawText(canvas, "No measurements yet", rect, walk.RGB(120, 130, 140), walk.TextCenter|walk.TextVCenter|walk.TextSingleLine)
+		return drawText(canvas, labelFont, "No measurements yet", rect, walk.RGB(120, 130, 140), walk.TextCenter|walk.TextVCenter|walk.TextSingleLine)
 	}
 
 	byGroup := map[int][]chartPlotPoint{}
@@ -2599,18 +2609,19 @@ func drawWarningBars(canvas *walk.Canvas, plot walk.Rectangle, points []chartPoi
 	if len(points) == 0 || !end.After(start) {
 		return nil
 	}
+	brushes := map[walk.Color]*walk.SolidColorBrush{}
+	defer disposeSolidBrushes(brushes)
 	band := issueMarkerBand(plot)
 	for _, p := range points {
 		if p.severity == 0 || p.at.Before(start) || p.at.After(end) {
 			continue
 		}
 		x := plot.X + int(p.at.Sub(start).Seconds()/end.Sub(start).Seconds()*float64(plot.Width))
-		brush, err := walk.NewSolidColorBrush(severityColor(p.severity))
+		brush, err := cachedSolidBrush(brushes, severityColor(p.severity))
 		if err != nil {
 			return err
 		}
 		err = fillClippedRectanglePixels(canvas, plot, walk.Rectangle{X: x - 3, Y: band.Y, Width: 7, Height: band.Height}, brush)
-		brush.Dispose()
 		if err != nil {
 			return err
 		}
@@ -2778,12 +2789,7 @@ func drawPanel(canvas *walk.Canvas, rect walk.Rectangle) error {
 	return nil
 }
 
-func drawText(canvas *walk.Canvas, text string, rect walk.Rectangle, color walk.Color, format walk.DrawTextFormat) error {
-	font, err := walk.NewFont("Segoe UI", 10, 0)
-	if err != nil {
-		return err
-	}
-	defer font.Dispose()
+func drawText(canvas *walk.Canvas, font *walk.Font, text string, rect walk.Rectangle, color walk.Color, format walk.DrawTextFormat) error {
 	return canvas.DrawTextPixels(text, font, color, rect, format)
 }
 
