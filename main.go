@@ -77,7 +77,7 @@ type pingResult struct {
 	sentAt      time.Time
 	rtt         int
 	destination string
-	status      string
+	kind        probe.OutcomeKind
 	warning     string
 }
 
@@ -2376,7 +2376,7 @@ func (s *streamState) accept(r pingResult) sampleEvent {
 	if s.lastAgg.IsZero() {
 		s.lastAgg = r.sentAt
 	}
-	lost := r.status != "Success"
+	lost := r.kind.CountsAsNetworkLoss()
 	value := r.rtt
 	if lost {
 		value = lostRTT
@@ -2465,11 +2465,11 @@ func pingBatchWithProber(ctx context.Context, hosts []string, destination string
 	}
 	wg.Wait()
 	close(ch)
-	best := pingResult{sentAt: sentAt, rtt: lostRTT, destination: destination, status: "failure"}
+	best := pingResult{sentAt: sentAt, rtt: lostRTT, destination: destination, kind: probe.OutcomeLocalFailure}
 	warnings := make([]string, 0, len(hosts))
 	for r := range ch {
-		if r.status == "Success" {
-			if best.status != "Success" || r.rtt < best.rtt {
+		if r.kind == probe.OutcomeReply {
+			if best.kind != probe.OutcomeReply || r.rtt < best.rtt {
 				best = r
 				best.destination = destination
 			}
@@ -2477,7 +2477,7 @@ func pingBatchWithProber(ctx context.Context, hosts []string, destination string
 			warnings = append(warnings, r.destination+": "+r.warning)
 		}
 	}
-	if best.status == "Success" {
+	if best.kind == probe.OutcomeReply {
 		return best
 	}
 	if len(warnings) > 0 {
@@ -2487,16 +2487,23 @@ func pingBatchWithProber(ctx context.Context, hosts []string, destination string
 }
 
 func pingResultFromOutcome(outcome probe.Outcome) pingResult {
-	rtt := outcome.RTTMilliseconds()
-	if outcome.Status() != "Success" || rtt <= 0 {
+	rtt := 0
+	if duration, ok := outcome.RTT(); ok {
+		rtt = max(1, int(math.Round(float64(duration)/float64(time.Millisecond))))
+	}
+	if outcome.Kind() != probe.OutcomeReply || rtt <= 0 {
 		rtt = lostRTT
+	}
+	destination := outcome.Request().Target
+	if address, ok := outcome.Address(); ok {
+		destination = address.String()
 	}
 	return pingResult{
 		sentAt:      outcome.Request().SentAt,
 		rtt:         rtt,
-		destination: outcome.Destination(),
-		status:      outcome.Status(),
-		warning:     outcome.Warning(),
+		destination: destination,
+		kind:        outcome.Kind(),
+		warning:     outcome.Detail(),
 	}
 }
 

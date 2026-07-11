@@ -2,6 +2,7 @@ package probe
 
 import (
 	"errors"
+	"net/netip"
 	"testing"
 	"time"
 )
@@ -14,11 +15,16 @@ func TestParsePingOutputPreservesRequestAndReplyFields(t *testing.T) {
 	if got.Request() != req {
 		t.Fatalf("request = %+v, want %+v", got.Request(), req)
 	}
-	if got.Status() != "Success" || got.RTTMilliseconds() != 12 || got.Destination() != "192.0.2.10" {
-		t.Fatalf("reply outcome = status %q rtt %d destination %q", got.Status(), got.RTTMilliseconds(), got.Destination())
+	rtt, ok := got.RTT()
+	if got.Kind() != OutcomeReply || !ok || rtt != 12*time.Millisecond {
+		t.Fatalf("reply outcome = kind %v rtt %v ok %v", got.Kind(), rtt, ok)
 	}
-	if got.Warning() != "" {
-		t.Fatalf("warning = %q, want empty", got.Warning())
+	address, ok := got.Address()
+	if !ok || address != netip.MustParseAddr("192.0.2.10") {
+		t.Fatalf("address = %v ok %v, want 192.0.2.10", address, ok)
+	}
+	if got.Detail() != "" {
+		t.Fatalf("detail = %q, want empty", got.Detail())
 	}
 }
 
@@ -26,12 +32,12 @@ func TestParsePingOutputDistinguishesTimeoutFromLocalFailure(t *testing.T) {
 	req := Request{ID: 1, Target: "192.0.2.1"}
 
 	timeout := parsePingOutput(req, "Request timed out.\r\n", nil)
-	if timeout.Status() != "TimeOut" || timeout.RTTMilliseconds() != 0 || timeout.Warning() != "Request timed out." {
-		t.Fatalf("timeout outcome = status %q rtt %d warning %q", timeout.Status(), timeout.RTTMilliseconds(), timeout.Warning())
+	if timeout.Kind() != OutcomeTimeout || !timeout.CountsAsNetworkLoss() {
+		t.Fatalf("timeout outcome = kind %v networkLoss %v", timeout.Kind(), timeout.CountsAsNetworkLoss())
 	}
 
 	failure := parsePingOutput(req, "Ping request could not find host missing.\r\n", errors.New("exit status 1"))
-	if failure.Status() != "PingFailed" || failure.RTTMilliseconds() != 0 {
-		t.Fatalf("failure outcome = status %q rtt %d", failure.Status(), failure.RTTMilliseconds())
+	if failure.Kind() != OutcomeLocalFailure || failure.CountsAsNetworkLoss() {
+		t.Fatalf("failure outcome = kind %v networkLoss %v", failure.Kind(), failure.CountsAsNetworkLoss())
 	}
 }

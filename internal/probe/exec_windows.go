@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"net/netip"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -42,18 +44,32 @@ func parsePingOutput(req Request, text string, err error) Outcome {
 		if rtt < 1 {
 			rtt = 1
 		}
-		dest := req.Target
+		var address netip.Addr
 		if dm := reTarget.FindStringSubmatch(text); len(dm) == 2 {
-			dest = strings.TrimSpace(dm[1])
+			address, _ = netip.ParseAddr(strings.TrimSpace(dm[1]))
 		}
-		return NewOutcome(req, rtt, dest, "Success", "")
+		return NewReply(req, address, time.Duration(rtt)*time.Millisecond)
 	}
 
-	status := "TimeOut"
-	if err != nil && !errors.Is(err, context.DeadlineExceeded) {
-		status = "PingFailed"
+	detail := firstLine(text)
+	lowerText := strings.ToLower(text)
+	switch {
+	case errors.Is(err, context.Canceled):
+		return NewCancelled(req).WithDetail(detail)
+	case strings.Contains(lowerText, "ttl expired"):
+		return NewTTLExpired(req, 0, detail)
+	case strings.Contains(lowerText, "unreachable"):
+		return NewUnreachable(req, 0, detail)
+	case strings.Contains(lowerText, "timed out"):
+		return NewTimeout(req).WithDetail(detail)
+	case err != nil && !errors.Is(err, context.DeadlineExceeded):
+		if detail != "" {
+			return NewLocalFailure(req, fmt.Errorf("%w: %s", err, detail))
+		}
+		return NewLocalFailure(req, err)
+	default:
+		return NewTimeout(req).WithDetail(detail)
 	}
-	return NewOutcome(req, 0, req.Target, status, firstLine(text))
 }
 
 func hiddenSysProcAttr() *syscall.SysProcAttr {
