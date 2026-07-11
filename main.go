@@ -28,6 +28,7 @@ import (
 	. "github.com/lxn/walk/declarative"
 	"github.com/lxn/win"
 	"pingaro/internal/profiles"
+	"pingaro/internal/settings"
 	"pingaro/internal/targets"
 )
 
@@ -35,7 +36,7 @@ const lostRTT = 9999
 
 const (
 	appIconResourceID      = 2
-	defaultInternetTargets = "1.1.1.1, 1.1.1.2, 8.8.8.8, 8.8.4.4"
+	defaultInternetTargets = settings.DefaultInternetTargets
 )
 
 const (
@@ -220,18 +221,9 @@ type targetGroup struct {
 	Color   walk.Color
 }
 
-type savedConfig struct {
-	Groups             []savedGroup `json:"groups"`
-	PPS                int          `json:"pps"`
-	AggregationSeconds int          `json:"aggregationSeconds"`
-	UseType            string       `json:"useType,omitempty"`
-	UseTypes           []string     `json:"useTypes,omitempty"`
-}
+type savedConfig = settings.Config
 
-type savedGroup struct {
-	Name    string `json:"name"`
-	Targets string `json:"targets"`
-}
+type savedGroup = settings.Group
 
 type useProfile = profiles.Profile
 
@@ -374,79 +366,31 @@ func loadConfig() savedConfig {
 }
 
 func loadConfigFromPaths(path, legacyPath string) savedConfig {
-	if cfg, ok := readSavedConfig(path); ok && len(cfg.Groups) > 0 {
-		return cfg
-	}
-	if cfg, ok := readSavedConfig(legacyPath); ok {
-		if err := writeConfigFile(path, cfg); err == nil {
-			_ = os.Remove(legacyPath)
-		}
-		if len(cfg.Groups) > 0 {
-			return cfg
-		}
-	}
-	return defaultConfig()
+	return settings.LoadFromPaths(path, legacyPath)
 }
 
 func readSavedConfig(path string) (savedConfig, bool) {
-	cfg := baseConfig()
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return cfg, false
-	}
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return cfg, false
-	}
-	return normalizeLoadedConfig(cfg), true
+	return settings.Read(path)
 }
 
 func normalizeLoadedConfig(cfg savedConfig) savedConfig {
-	cfg.PPS = clampInt(cfg.PPS, 1, 20)
-	cfg.AggregationSeconds = clampInt(cfg.AggregationSeconds, 3, 3600)
-	cfg.UseTypes = normalizeUseTypes(cfg.UseTypes, cfg.UseType)
-	cfg.UseType = ""
-	cfg.Groups = normalizeSavedGroups(cfg.Groups)
-	return cfg
+	return settings.NormalizeLoaded(cfg)
 }
 
 func baseConfig() savedConfig {
-	return savedConfig{PPS: 1, AggregationSeconds: 120, UseTypes: defaultUseTypes()}
+	return settings.Base()
 }
 
 func defaultConfig() savedConfig {
-	cfg := savedConfig{
-		PPS:                1,
-		AggregationSeconds: 120,
-		UseTypes:           defaultUseTypes(),
-		Groups:             defaultGroups(),
-	}
-	return cfg
+	return settings.Default()
 }
 
 func defaultGroups() []savedGroup {
-	return []savedGroup{
-		{Name: "Gateway", Targets: "gateway"},
-		{Name: "Internet", Targets: defaultInternetTargets},
-	}
+	return settings.DefaultGroups()
 }
 
 func normalizeSavedGroups(groups []savedGroup) []savedGroup {
-	out := make([]savedGroup, 0, 3)
-	for _, g := range groups {
-		targets := strings.Join(parseTargets(g.Targets), ", ")
-		if targets == "" {
-			continue
-		}
-		name := strings.TrimSpace(g.Name)
-		if name == "" {
-			name = fmt.Sprintf("Group %d", len(out)+1)
-		}
-		out = append(out, savedGroup{Name: name, Targets: targets})
-		if len(out) == 3 {
-			break
-		}
-	}
-	return out
+	return settings.NormalizeGroups(groups)
 }
 
 func saveConfig(cfg savedConfig) {
@@ -454,14 +398,7 @@ func saveConfig(cfg savedConfig) {
 }
 
 func writeConfigFile(path string, cfg savedConfig) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return err
-	}
-	data, err := json.MarshalIndent(cfg, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, data, 0644)
+	return settings.WriteFile(path, cfg)
 }
 
 func configPath() string {
