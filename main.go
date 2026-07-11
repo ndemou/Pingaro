@@ -11,7 +11,6 @@ import (
 	"io"
 	"log"
 	"math"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -29,6 +28,7 @@ import (
 	. "github.com/lxn/walk/declarative"
 	"github.com/lxn/win"
 	"pingaro/internal/profiles"
+	"pingaro/internal/targets"
 )
 
 const lostRTT = 9999
@@ -565,52 +565,7 @@ func appDataPath(name string) string {
 }
 
 func defaultGateway() string {
-	if runtime.GOOS == "windows" {
-		return defaultGatewayWindows()
-	}
-	return defaultGatewayUnix()
-}
-
-func defaultGatewayWindows() string {
-	cmd := exec.Command("route", "PRINT", "-4", "0.0.0.0")
-	cmd.SysProcAttr = hiddenSysProcAttr()
-	out, err := cmd.Output()
-	if err != nil {
-		return ""
-	}
-	bestGateway := ""
-	bestMetric := math.MaxInt
-	for _, line := range strings.Split(string(out), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) < 5 || fields[0] != "0.0.0.0" || fields[1] != "0.0.0.0" {
-			continue
-		}
-		gateway := fields[2]
-		if net.ParseIP(gateway) == nil {
-			continue
-		}
-		metric := parseInt(fields[len(fields)-1], math.MaxInt)
-		if metric < bestMetric {
-			bestMetric = metric
-			bestGateway = gateway
-		}
-	}
-	return bestGateway
-}
-
-func defaultGatewayUnix() string {
-	cmd := exec.Command("sh", "-c", "ip route show default 2>/dev/null | head -n 1")
-	out, err := cmd.Output()
-	if err != nil {
-		return ""
-	}
-	fields := strings.Fields(string(out))
-	for i := 0; i+1 < len(fields); i++ {
-		if fields[i] == "via" && net.ParseIP(fields[i+1]) != nil {
-			return fields[i+1]
-		}
-	}
-	return ""
+	return targets.DefaultGateway()
 }
 
 func (a *app) run() error {
@@ -2788,48 +2743,15 @@ func p95Jitter(values []int) float64 {
 }
 
 func parseTargets(value string) []string {
-	targets := make([]string, 0, 4)
-	for _, part := range strings.FieldsFunc(value, func(r rune) bool {
-		return r == ',' || r == ';' || r == ' ' || r == '\t' || r == '\n' || r == '\r'
-	}) {
-		part = strings.TrimSpace(part)
-		if part != "" {
-			targets = append(targets, part)
-		}
-	}
-	return targets
+	return targets.Parse(value)
 }
 
-func resolveTargets(targets []string, gateway string) []string {
-	out := make([]string, 0, len(targets))
-	for _, target := range targets {
-		resolved := resolveTarget(target, gateway)
-		if resolved != "" {
-			out = append(out, resolved)
-		}
-	}
-	return out
+func resolveTargets(values []string, gateway string) []string {
+	return targets.Resolve(values, gateway)
 }
 
-func resolveTarget(target, gateway string) string {
-	target = strings.TrimSpace(target)
-	switch strings.ToLower(target) {
-	case "localhost":
-		return "127.0.0.1"
-	case "gateway":
-		return strings.TrimSpace(gateway)
-	default:
-		return target
-	}
-}
-
-func targetListNeedsGateway(targets []string) bool {
-	for _, target := range targets {
-		if strings.EqualFold(strings.TrimSpace(target), "gateway") {
-			return true
-		}
-	}
-	return false
+func targetListNeedsGateway(values []string) bool {
+	return targets.NeedsGateway(values)
 }
 
 func withoutLost(values []int) []int {
