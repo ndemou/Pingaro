@@ -814,7 +814,11 @@ func (a *app) accept(ev sampleEvent) {
 	if flushed, err := a.maybeFlushAutosaveHistory(now); err == nil && flushed {
 		a.lastHistorySave = now
 	}
-	a.invalidateCharts()
+	if ev.aggregate != nil {
+		a.invalidateCharts()
+	} else {
+		a.invalidateRealtimeChart()
+	}
 }
 
 func (a *app) shouldFlushAutosaveHistory(now time.Time) bool {
@@ -1410,8 +1414,19 @@ func summaryBackgroundColor(severity int) walk.Color {
 
 func (a *app) invalidateCharts() {
 	a.updateAdaptiveChartHeights()
+	a.invalidateRealtimeChart()
+	a.invalidateAggregateCharts()
+}
+
+func (a *app) invalidateRealtimeChart() {
+	if a.rttChart != nil && a.rttChart.Visible() {
+		a.rttChart.Invalidate()
+	}
+}
+
+func (a *app) invalidateAggregateCharts() {
 	for _, chart := range []*walk.CustomWidget{a.rttChart, a.p95Chart, a.lossChart, a.jitterChart} {
-		if chart != nil && chart.Visible() {
+		if chart != nil && chart != a.rttChart && chart.Visible() {
 			chart.Invalidate()
 		}
 	}
