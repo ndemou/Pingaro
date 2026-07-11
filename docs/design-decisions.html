@@ -456,6 +456,7 @@
         <li>Outstanding requests are bounded per target and globally. When a limit is reached, Pingaro records a local not-sent outcome instead of blocking the schedule, and that outcome is not packet loss.</li>
         <li>If the process is delayed or resumes after missed intervals, Pingaro skips old slots instead of sending a catch-up burst.</li>
         <li>Each monitoring run has a session ID so late results from a previous run cannot be accepted into a newer run.</li>
+        <li>On Windows, probing uses the native ICMP API directly for IPv4 targets. Pingaro does not need elevation for ordinary ICMP echo requests and does not launch <code>ping.exe</code> during normal monitoring.</li>
       </ul>
     </section>
 
@@ -780,6 +781,8 @@
         <div>Changed the internal measurement model to use typed outcomes and explicit reply/loss state instead of status strings and a magic lost RTT value, while preserving version-1 history compatibility.</div>
         <div><strong>Fixed-cadence scheduler</strong></div>
         <div>Changed monitoring to schedule probe batches at fixed intended times with overlapping outstanding requests, a 500 ms reply deadline, bounded outstanding counts, no catch-up bursts after delays, and session isolation for late results.</div>
+        <div><strong>Windows ICMP backend</strong></div>
+        <div>Changed normal monitoring to use the Windows ICMP API directly for IPv4 echo requests instead of launching <code>ping.exe</code>.</div>
       </div>
     </section>
   </main>

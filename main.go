@@ -768,7 +768,7 @@ func (a *app) pingLoop(ctx context.Context, groups []targetGroup, pps, aggSecond
 	perTargetLimit := monitor.DefaultPerTargetOutstandingLimit(monitor.DefaultReplyTimeout, period)
 	scheduler := monitor.NewScheduler(monitor.SchedulerConfig{
 		Clock:                monitor.RealClock{},
-		Prober:               probe.NewExecProber(),
+		Prober:               probe.NewICMPProber(),
 		SessionID:            sessionID,
 		Interval:             period,
 		ReplyTimeout:         monitor.DefaultReplyTimeout,
@@ -2473,7 +2473,7 @@ func (s *streamState) accept(r pingResult) sampleEvent {
 }
 
 func pingBatch(ctx context.Context, hosts []string, destination string, sentAt time.Time) pingResult {
-	return pingBatchWithProber(ctx, hosts, destination, sentAt, probe.NewExecProber())
+	return pingBatchWithProber(ctx, hosts, destination, sentAt, probe.NewICMPProber())
 }
 
 func pingBatchWithProber(ctx context.Context, hosts []string, destination string, sentAt time.Time, prober probe.Prober) pingResult {
