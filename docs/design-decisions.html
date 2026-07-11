@@ -588,7 +588,7 @@
       <h3>Layout Decisions</h3>
       <ul>
         <li>The first screen is the actual monitoring dashboard, not a landing page.</li>
-        <li>The left pane contains target groups, use profiles, measurement rate, aggregation window, actions, and a History heading over the Save and Load buttons.</li>
+        <li>The left pane contains target groups, <strong>Use profiles (choose all that apply)</strong>, measurement rate, aggregation window, actions, and a History heading over the Save and Load buttons. Target group inputs are labeled as <strong>Group N name</strong> and an indented <strong>Target(s)</strong>; the name field is optional, and the targets field accepts one or more comma-separated IPs or host names.</li>
         <li>The total sample count, overall status, and build metadata sit at the bottom-left of the window so developers can identify the exact running build without opening external release notes.</li>
         <li>The right pane contains the live latency chart and aggregate charts.</li>
         <li>Chart headers, last values, plot area, axis labels, and warning regions are custom-painted inside Walk <code>CustomWidget</code> controls.</li>
@@ -789,6 +789,8 @@
         <div>Changed live latency sample slots from 8 to 10 pixels, kept the RTT bars 4 pixels wide, widened issue highlight bars, enlarged loss crosses to 10x10 pixels, stacked present loss crosses from the top by group, and aligned sparse realtime x-axis labels with the right-anchored sample slots.</div>
         <div><strong>Measurement input limits</strong></div>
         <div>Raised the measurement-rate limit to 50/sec, allowed 1-second and 2-second aggregation windows, changed the bottom-left count label from pings to samples, and added validation so each aggregate window contains at least two samples.</div>
+        <div><strong>Target group labels</strong></div>
+        <div>Removed separate <code>Group N</code> rows, moved the group number into the name label, changed target labels to indented <code>Target(s)</code>, added tooltips explaining the optional group name and comma-separated target list, escaped literal ampersands in profile names, and added Start/Stop keyboard mnemonics.</div>
       </div>
     </section>
   </main>

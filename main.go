@@ -48,6 +48,7 @@ const (
 	minAggregationSeconds    = 1
 	maxAggregationSeconds    = 3600
 	minSamplesPerAggregation = 2
+	groupSubsectionIndent    = 12
 )
 
 var (
@@ -478,7 +479,7 @@ func (a *app) run() error {
 							a.groupEditor(0),
 							a.groupEditor(1),
 							a.groupEditor(2),
-							Label{Text: "Use profiles"},
+							Label{Text: "Use profiles (choose all that apply)"},
 							a.useTypeEditor(),
 							Composite{
 								Layout: VBox{MarginsZero: true, Spacing: 3},
@@ -490,8 +491,8 @@ func (a *app) run() error {
 							Composite{
 								Layout: Grid{Columns: 2, MarginsZero: true},
 								Children: []Widget{
-									PushButton{AssignTo: &a.startButton, Text: "Start", OnClicked: a.start},
-									PushButton{AssignTo: &a.stopButton, Text: "Stop", Enabled: false, OnClicked: a.stop},
+									PushButton{AssignTo: &a.startButton, Text: "S&tart", OnClicked: a.start},
+									PushButton{AssignTo: &a.stopButton, Text: "&Stop", Enabled: false, OnClicked: a.stop},
 								},
 							},
 							Label{Text: "History"},
@@ -570,22 +571,45 @@ func (a *app) groupEditor(index int) Widget {
 	return Composite{
 		Layout: VBox{MarginsZero: true, Spacing: 0},
 		Children: []Widget{
-			a.groupLabel(index),
-			a.lineEditor("Name", &a.groupNames[index], name),
-			Label{Text: "Targets"},
-			LineEdit{AssignTo: &a.groupTargets[index], Text: targets, MaxSize: Size{120, 0}},
+			a.lineEditorWithToolTip(groupNameLabel(index), &a.groupNames[index], name, 120, "Chose anything you like (optional)"),
+			a.lineEditorWithToolTipIndent(groupTargetsLabel(index), &a.groupTargets[index], targets, 120, "One or more IPs or host names separated by commas", groupSubsectionIndent),
 		},
 	}
 }
 
 func (a *app) lineEditor(label string, assignTo **walk.LineEdit, text string) Widget {
+	return a.lineEditorWithToolTip(label, assignTo, text, 70, "")
+}
+
+func (a *app) lineEditorWithToolTip(label string, assignTo **walk.LineEdit, text string, maxWidth int, toolTip string) Widget {
+	return a.lineEditorWithToolTipIndent(label, assignTo, text, maxWidth, toolTip, 0)
+}
+
+func (a *app) lineEditorWithToolTipIndent(label string, assignTo **walk.LineEdit, text string, maxWidth int, toolTip string, labelIndent int) Widget {
+	labelWidget := Widget(Label{Text: label})
+	if labelIndent > 0 {
+		labelWidget = Composite{
+			Layout: HBox{Margins: Margins{Left: labelIndent}, Spacing: 0},
+			Children: []Widget{
+				Label{Text: label},
+			},
+		}
+	}
 	return Composite{
 		Layout: Grid{Columns: 2, MarginsZero: true, Spacing: 4},
 		Children: []Widget{
-			Label{Text: label},
-			LineEdit{AssignTo: assignTo, Text: text, MaxSize: Size{70, 0}},
+			labelWidget,
+			LineEdit{AssignTo: assignTo, Text: text, MaxSize: Size{maxWidth, 0}, ToolTipText: toolTip},
 		},
 	}
+}
+
+func groupNameLabel(index int) string {
+	return fmt.Sprintf("Group %d name", index+1)
+}
+
+func groupTargetsLabel(index int) string {
+	return "Target(s)"
 }
 
 func (a *app) useTypeEditor() Widget {
@@ -594,7 +618,7 @@ func (a *app) useTypeEditor() Widget {
 	for i, profile := range useProfiles {
 		children = append(children, CheckBox{
 			AssignTo: &a.useChecks[i],
-			Text:     profile.Name,
+			Text:     escapeMnemonic(profile.Name),
 			Checked:  selected[profile.Name],
 		})
 	}
@@ -604,8 +628,8 @@ func (a *app) useTypeEditor() Widget {
 	}
 }
 
-func (a *app) groupLabel(index int) Widget {
-	return Label{Text: fmt.Sprintf("Group %d", index+1)}
+func escapeMnemonic(text string) string {
+	return strings.ReplaceAll(text, "&", "&&")
 }
 
 func (a *app) start() {

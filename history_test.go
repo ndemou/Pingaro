@@ -109,6 +109,21 @@ func TestMeasurementStatusTextUsesSamples(t *testing.T) {
 	}
 }
 
+func TestGroupInputLabelsIncludeGroupNumber(t *testing.T) {
+	if got := groupNameLabel(0); got != "Group 1 name" {
+		t.Fatalf("groupNameLabel(0) = %q", got)
+	}
+	if got := groupTargetsLabel(2); got != "Target(s)" {
+		t.Fatalf("groupTargetsLabel(2) = %q", got)
+	}
+}
+
+func TestEscapeMnemonicPreservesVisibleAmpersand(t *testing.T) {
+	if got := escapeMnemonic("Browsing & Email"); got != "Browsing && Email" {
+		t.Fatalf("escapeMnemonic() = %q", got)
+	}
+}
+
 func TestSamplesPerAggregationRequiresAtLeastTwoSamples(t *testing.T) {
 	if got := samplesPerAggregation(1, 1); got != 1 {
 		t.Fatalf("samplesPerAggregation(1, 1) = %d, want 1", got)
