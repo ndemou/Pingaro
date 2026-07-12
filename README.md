@@ -7,8 +7,6 @@ any quality issues it detects. You can leave it running in the background and re
 
 <img width="1226" height="943" alt="image" src="https://github.com/user-attachments/assets/a7b7c7a8-9c4e-41f8-a11c-214a38f0dfc2" />
 
-<img width="1211" height="948" alt="image" src="https://github.com/user-attachments/assets/1ab3a613-a6ea-463e-a2a6-641fc815b2ec" />
-
 Settings are saved in `%AppData%\Pingaro\settings.json`. Automatic capture history is saved under `%AppData%\Pingaro` as timestamped files such as `history-2026-07-09_08.52.31.json`. Manual history Save/Load defaults to `history.json`. Older versions used `%AppData%\Pingaro\pingaro.json` for settings and `%AppData%\Pingaro\pingaro-history.json` for history; Pingaro migrates those legacy files to the clearer names when needed.
 
 ## Download From GitHub
