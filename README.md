@@ -23,7 +23,7 @@ any quality issues it detects. You can leave it running in the background and re
 4. **If** *you made any changes*, click `Stop` and then `Start`.
 5. Start using your Internet connection normaly and from time to time, take a look at the graphs for any grayish, yellowish or redish markers:
 
-<img width="374" height="191" alt="temp" src="https://github.com/user-attachments/assets/75c7e39d-a171-4fa4-aff6-4015ab9239df" />
+<img width="374" height="191" alt="image" src="https://github.com/user-attachments/assets/f5ffb518-b98c-4124-82fb-54996b04a1e0" />
 
 Or just read the Quality Assesment at the bottom left corner:
 
