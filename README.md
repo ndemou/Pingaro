@@ -7,8 +7,6 @@ any quality issues it detects. You can leave it running in the background and re
 
 <img width="1226" height="943" alt="image" src="https://github.com/user-attachments/assets/a7b7c7a8-9c4e-41f8-a11c-214a38f0dfc2" />
 
-Settings are saved in `%AppData%\Pingaro\settings.json`. Automatic capture history is saved under `%AppData%\Pingaro` as timestamped files such as `history-2026-07-09_08.52.31.json`. Manual history Save/Load defaults to `history.json`. Older versions used `%AppData%\Pingaro\pingaro.json` for settings and `%AppData%\Pingaro\pingaro-history.json` for history; Pingaro migrates those legacy files to the clearer names when needed.
-
 ## Download & Use
 
 1. Open the Pingaro releases page: <https://github.com/ndemou/Pingaro/releases>
@@ -37,7 +35,9 @@ If you are not an expert pingaro will easily answer this question: "is my Intern
 
 If you are an expert take a look at the screenshot and you know 90% of what you are getting: a dashboard view of connection quality over time: live latency, aggregated p95 RTT, packet loss, and one-way jitter estimates. Also note that when checking Internet quality (or manually entered lists of hosts), Pingaro measures multiple hosts in parallel. If at least one host replies in a batch, the batch is treated as successful and the minimum RTT is used. That makes the view less sensitive to a temporary issue on one remote host.
 
-Pingaro automaticly saves timestamped history files in `%AppData%\Pingaro`.
+Settings are auto-saved in `%AppData%\Pingaro\settings.json`. 
+
+Everything displayed is also automaticly saved under `%AppData%\Pingaro` as timestamped files such as `history-2026-07-09_08.52.31.json`. 
 
 Measurements are scheduled at a steady cadence. Replies that arrive too late are treated as lost, so the live graph reflects delayed or missing responses promptly instead of waiting for old replies to catch up.
 
