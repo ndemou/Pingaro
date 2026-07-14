@@ -41,12 +41,11 @@ Everything displayed is also automaticly saved under `%AppData%\Pingaro` as time
 
 Measurements are scheduled at a steady cadence. Replies that arrive too late are treated as lost, so the live graph reflects delayed or missing responses promptly instead of waiting for old replies to catch up.
 
-In targets the special target name `localhost` resolves to `127.0.0.1`. The special target name `gateway` resolves to the current default gateway IP address.
-You can, and should prefer to, inlcude more than one hosts per target group. Pingaro considers a ping succesful if **any** of the hosts reply and only considers the minimum RTT of all replies. 
+You can include more than one hosts per target group. A ping will be considered succesful if **any** of the hosts reply and the minimum RTT is recorded. You should prefer to include at least two targets because every once in a while a host may fail to respond. For example, to check the quality of your WiFi, add both your default gateway, add the IP of a PC that is *wired* to your LAN.
+
+The special target name `gateway` resolves to the current default gateway IP address, `internet` is resolved to 4 well known IPs (and `localhost` resolves to `127.0.0.1`).
 
 When multiple use profiles are selected, Pingaro grades good, medium, and bad measurements using the strictest threshold from the selected profiles. 
-
-By default Pingaro selects `Browsing & Email`, `Audio Calls`, `Video Calls`, and `Online Gaming`. It leaves `Remote Desktop` and `Superhuman Gaming` unchecked. The jitter graph is shown only when `Audio Calls` or `Video Calls` is selected.
 
 ### Metrics
 
