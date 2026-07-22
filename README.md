@@ -5,46 +5,49 @@ clear visualizations of response time, packet loss, and jitter. If you are not, 
 Internet connection is good enough, pick a use profile, such as Audio Calls or Online Gaming, and let Pingaro highlight
 any quality issues it detects. You can leave it running in the background and review the results later.
 
-<img width="1211" height="948" alt="image" src="https://github.com/user-attachments/assets/1ab3a613-a6ea-463e-a2a6-641fc815b2ec" />
+<img width="1226" height="943" alt="image" src="https://github.com/user-attachments/assets/a7b7c7a8-9c4e-41f8-a11c-214a38f0dfc2" />
 
-Settings are saved in `%AppData%\Pingaro\settings.json`. Automatic capture history is saved under `%AppData%\Pingaro` as timestamped files such as `history-2026-07-09_08.52.31.json`. Manual history Save/Load defaults to `history.json`. Older versions used `%AppData%\Pingaro\pingaro.json` for settings and `%AppData%\Pingaro\pingaro-history.json` for history; Pingaro migrates those legacy files to the clearer names when needed.
-
-## Download From GitHub
+## Download & Use
 
 1. Open the Pingaro releases page: <https://github.com/ndemou/Pingaro/releases>
-2. Open the latest release.
-3. Download `pingaro.exe` from the release assets.
-4. In PowerShell, go to the download folder and run:
+2. Download the top most `pingaro.exe` from the release assets and run it (no installation is needed).
 
-```powershell
-.\pingaro.exe
-```
+   <img width="192" height="122" alt="image" src="https://github.com/user-attachments/assets/981d1775-dc20-41a2-b90b-b3998ab232ec" />
 
-If Windows shows a security warning because the executable is unsigned, choose `More info` and then `Run anyway` only if you downloaded it from the GitHub release page above.
+***If** Windows shows a security warning* because the executable is unsigned, choose `More info` and then `Run anyway` (only if you downloaded it from the GitHub release page above).
+
+3. Based on your Internet usage you may want to check/uncheck one or more use profiles.
+
+<img width="290" height="204" alt="image" src="https://github.com/user-attachments/assets/c6287083-b70c-4519-97e0-c69349575b80" />
+
+4. **If** *you made any changes*, click `Stop` and then `Start`.
+5. Start using your Internet connection normaly and from time to time, take a look at the graphs for any grayish, yellowish or redish markers:
+
+<img width="374" height="191" alt="image" src="https://github.com/user-attachments/assets/f5ffb518-b98c-4124-82fb-54996b04a1e0" />
+
+Or just read the Quality Assesment at the bottom left corner:
+
+<img width="401" height="197" alt="image" src="https://github.com/user-attachments/assets/6a82a2ac-8bc0-4094-afe2-82b63a0e1e82" />
 
 ## Why Use It
 
-Short connection checks are hard to interpret over more than a few seconds. Pingaro gives you a dashboard view of connection quality over time: live latency, aggregated p95 RTT, packet loss, and one-way jitter estimates.
+If you are not an expert pingaro will easily answer this question: "is my Internet connection good enough for my use case?" (it will not answer the unrelated question "is my Internet connection fast enough").
 
-When checking Internet quality, Pingaro can measure multiple well-known hosts in parallel. If at least one host replies in a batch, the batch is treated as successful and the minimum RTT is used. That makes the view less sensitive to a temporary issue on one remote host.
+If you are an expert take a look at the screenshot and you know 90% of what you are getting: a dashboard view of connection quality over time: live latency, aggregated p95 RTT, packet loss, and one-way jitter estimates. Also note that when checking Internet quality (or manually entered lists of hosts), Pingaro measures multiple hosts in parallel. If at least one host replies in a batch, the batch is treated as successful and the minimum RTT is used. That makes the view less sensitive to a temporary issue on one remote host.
 
-Measurements are scheduled at a steady cadence. Replies that arrive too late are treated as lost for that sample, so the live graph reflects delayed or missing responses promptly instead of waiting for old replies to catch up.
+Settings are auto-saved in `%AppData%\Pingaro\settings.json`. 
 
-## Typical Workflow
+Everything displayed is also automaticly saved under `%AppData%\Pingaro` as timestamped files such as `history-2026-07-09_08.52.31.json`. 
 
-1. Start `pingaro.exe`.
-2. Leave the default Gateway and Internet targets, or enter one to three target groups.
-3. Select one or more use profiles.
-4. Click `Start`.
-5. Watch the graphs for spikes, packet loss, or sustained jitter.
+Measurements are scheduled at a steady cadence. Replies that arrive too late are treated as lost, so the live graph reflects delayed or missing responses promptly instead of waiting for old replies to catch up.
 
-The special target name `localhost` resolves to `127.0.0.1`. The special target name `gateway` resolves to the current default gateway IP address.
+You can include more than one hosts per target group. A ping will be considered succesful if **any** of the hosts reply and the minimum RTT is recorded. You should prefer to include at least two targets because every once in a while a host may fail to respond. For example, to check the quality of your WiFi, add both your default gateway, and the IP of a PC that is *wired* to your LAN.
 
-By default Pingaro selects `Browsing & Email`, `Audio Calls`, `Video Calls`, and `Online Gaming`. It leaves `Remote Desktop` and `Superhuman Gaming` unchecked.
+The special target name `gateway` resolves to the current default gateway IP address, `internet` is resolved to 4 well known IPs, and `localhost` resolves to `127.0.0.1`.
 
-When multiple use profiles are selected, Pingaro grades good, medium, and bad measurements using the strictest threshold from the selected profiles. The jitter graph is shown only when `Audio Calls` or `Video Calls` is selected.
+When multiple use profiles are selected, Pingaro grades good, medium, and bad measurements using the strictest threshold from the selected profiles. 
 
-## Metrics
+### Metrics
 
 **RTT** is round-trip time in milliseconds.
 
@@ -52,11 +55,11 @@ When multiple use profiles are selected, Pingaro grades good, medium, and bad me
 
 **Loss** is the percent of measurement batches with no on-time reply.
 
-**One-way jitter** is estimated as half the two-way jitter.
+**One-way jitter** is estimated as half the measured two-way jitter.
 
-## Arguments
+### Files
 
-Pingaro is configured through the desktop UI. The saved config is reused on the next launch.
+Pingaro stores settings, and manual history exports under `%AppData%\Pingaro`. It also automaticly saves timestamped history files at the same folder.
 
 ## Build
 
@@ -71,14 +74,3 @@ Release builds should also set the visible version and build time:
 $buildTime = Get-Date -Format "yyyy-MM-ddTHH:mm:sszzz"
 go build -trimpath -ldflags="-H=windowsgui -X main.appVersion=vX.Y.Z -X main.appBuildTime=$buildTime" -o pingaro.exe .
 ```
-
-The `-H=windowsgui` linker flag is required. Without it, Windows starts the app through a console subsystem and opens a terminal window that must remain open.
-`go generate ./...` refreshes `rsrc.syso` from `pingaro.exe.manifest` and `assets/pingaro.ico`.
-
-## Run
-
-```powershell
-.\pingaro.exe
-```
-
-Pingaro stores settings, manual history exports, and automatic timestamped history files under `%AppData%\Pingaro`.
